@@ -25,16 +25,16 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Depends on**: Nothing (first phase)
 **Requirements**: DATA-01, DATA-02, DATA-03, DATA-04, DATA-05, UX-02
 **Success Criteria** (what must be TRUE):
-  1. Daily 시트에서 일자별 매출/손익/이용시간/이용건수/가동률/목표 데이터가 타입 안전하게 파싱되어 반환된다
-  2. Weekly 시트에서 주차별 매출/손익/이용시간/이용건수/가동률 데이터가 타입 안전하게 파싱되어 반환된다
+  1. Daily 시트에서 일자별 매출/손익/이용시간/이용건수/가동률 데이터가 타입 안전하게 파싱되어 반환된다 (목표 데이터는 Weekly에만 존재)
+  2. Weekly 시트에서 주차별 매출/손익/이용시간/이용건수/가동률/목표 데이터가 타입 안전하게 파싱되어 반환된다
   3. 한국어 숫자 포맷(콤마, 원화 기호)이 포함된 값이 NaN 없이 Number로 변환된다
   4. Google Sheets 미연결 시 mock 데이터로 폴백하여 대시보드 페이지가 정상 렌더링된다
   5. 페이지 접속/새로고침 시 Google Sheets에서 최신 데이터를 가져온다
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
+- [ ] 01-01-PLAN.md — 팀 전용 TypeScript 타입 정의 (DailyRecord, WeeklyRecord, TeamDashboardData)
+- [ ] 01-02-PLAN.md — 팀 mock 데이터 + Korean 숫자 파서 + getTeamDashboardData 구현
 
 ### Phase 2: Dashboard Shell + KPI Cards
 **Goal**: 사용자가 Daily/Weekly 탭을 전환하며 핵심 KPI 지표를 목표 대비 달성률과 기간 비교로 즉시 확인할 수 있다
@@ -102,7 +102,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Data Layer Foundation | 0/TBD | Not started | - |
+| 1. Data Layer Foundation | 0/2 | Not started | - |
 | 2. Dashboard Shell + KPI Cards | 0/TBD | Not started | - |
 | 3. Chart Components | 0/TBD | Not started | - |
 | 4. Data Table + Polish | 0/TBD | Not started | - |
