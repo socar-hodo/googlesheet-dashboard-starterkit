@@ -11,7 +11,7 @@
 - [ ] **DATA-02**: Google Sheets Weekly 시트에서 주차별 매출, 손익, 이용시간, 이용건수, 가동률을 파싱한다
 - [ ] **DATA-03**: 한국어 숫자 포맷("1,234,567", "₩1,234,567")을 NaN 없이 안전하게 Number로 변환한다
 - [ ] **DATA-04**: Google Sheets 미연결 또는 API 실패 시 mock 데이터로 폴백하여 페이지가 정상 렌더링된다
-- [ ] **DATA-05**: 기존 범용 타입(KpiData, MonthlyRevenue, CategoryDistribution, RecentOrder)을 팀 전용 타입(DailyRecord, WeeklyRecord, TeamKpi, TeamDashboardData)으로 완전 교체한다
+- [x] **DATA-05**: 기존 범용 타입(KpiData, MonthlyRevenue, CategoryDistribution, RecentOrder)을 팀 전용 타입(DailyRecord, WeeklyRecord, TeamKpi, TeamDashboardData)으로 완전 교체한다
 
 ### KPI Cards
 
@@ -84,7 +84,7 @@
 | DATA-02 | Phase 1 | Pending |
 | DATA-03 | Phase 1 | Pending |
 | DATA-04 | Phase 1 | Pending |
-| DATA-05 | Phase 1 | Pending |
+| DATA-05 | Phase 1 | Complete |
 | KPI-01 | Phase 2 | Pending |
 | KPI-02 | Phase 2 | Pending |
 | KPI-03 | Phase 2 | Pending |
