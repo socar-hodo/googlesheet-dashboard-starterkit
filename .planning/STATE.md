@@ -10,31 +10,32 @@ See: .planning/PROJECT.md (updated 2026-02-21)
 ## Current Position
 
 Phase: 2 of 5 (Dashboard Shell + KPI Cards)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: In Progress
-Last activity: 2026-02-22 -- Plan 02-01 완료 (shadcn 설치 + KPI 유틸리티 + 스켈레턴)
+Last activity: 2026-02-22 -- Plan 02-02 완료 (TabNav + KpiCard + KpiCards 구현)
 
-Progress: [███░░░░░░░] 20%
+Progress: [████░░░░░░] 27%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
+- Total plans completed: 4
 - Average duration: 3.0 min
-- Total execution time: 0.25 hours
+- Total execution time: 0.33 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-data-layer-foundation | 2 | 5 min | 2.5 min |
-| 02-dashboard-shell-kpi-cards | 1 | 5 min | 5.0 min |
+| 02-dashboard-shell-kpi-cards | 2 | 7 min | 3.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (2 min), 01-02 (3 min), 02-01 (5 min)
+- Last 5 plans: 01-01 (2 min), 01-02 (3 min), 02-01 (5 min), 02-02 (2 min)
 - Trend: -
 
 *Updated after each plan completion*
+| Phase 02-dashboard-shell-kpi-cards P02 | 2 | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -55,6 +56,9 @@ Recent decisions affecting current work:
 - [Phase 02-01]: previous=0일 때 percent=0 반환 — 0으로 나누기 방지
 - [Phase 02-01]: formatDelta unit 파라미터로 원/건/%/시간 분기 — KPI 카드에서 단위별 표시 통일
 - [Phase 02-01]: Progress 바 색상은 [&>div]:bg-{color} 패턴으로 shadcn Progress 내부 div 오버라이드
+- [Phase 02-dashboard-shell-kpi-cards]: Daily 탭에서 달성률/Progress 바 숨김 — DailyRecord에 목표값 없음 (Phase 1 결정 준수)
+- [Phase 02-dashboard-shell-kpi-cards]: Weekly 탭에서 매출 카드만 weeklyTarget 대비 달성률 표시 — 타 KPI는 목표값 없음
+- [Phase 02-dashboard-shell-kpi-cards]: Progress value 상한 Math.min(achievementRate, 100) — 100% 초과 시 Progress 바 오버플로우 방지
 
 ### Pending Todos
 
@@ -69,5 +73,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 02-dashboard-shell-kpi-cards-02-01-PLAN.md (shadcn 설치 + KPI 유틸리티 + 스켈레턴 완료)
+Stopped at: Completed 02-dashboard-shell-kpi-cards-02-02-PLAN.md (TabNav + KpiCard + KpiCards 구현 완료)
 Resume file: None

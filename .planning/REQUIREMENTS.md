@@ -15,7 +15,7 @@
 
 ### KPI Cards
 
-- [ ] **KPI-01**: 매출, 손익, 이용건수, 가동률, 이용시간 총 5개 KPI 카드를 표시한다
+- [x] **KPI-01**: 매출, 손익, 이용건수, 가동률, 이용시간 총 5개 KPI 카드를 표시한다
 - [x] **KPI-02**: 각 KPI 카드에 목표 대비 달성률(%)을 숫자로 표시한다
 - [x] **KPI-03**: 각 KPI 카드에 목표 달성 프로그레스 바(0~100% 게이지)를 표시한다
 - [x] **KPI-04**: 각 KPI 카드에 기간 비교 델타(이번 주 vs 지난 주 또는 이번 달 vs 지난 달 증감)를 표시한다
@@ -23,8 +23,8 @@
 
 ### Tab Navigation
 
-- [ ] **TAB-01**: 단일 페이지에서 Daily/Weekly 탭 전환이 가능하다
-- [ ] **TAB-02**: 탭 상태가 URL searchParams(?tab=daily|weekly)에 저장되어 공유/북마크가 가능하다
+- [x] **TAB-01**: 단일 페이지에서 Daily/Weekly 탭 전환이 가능하다
+- [x] **TAB-02**: 탭 상태가 URL searchParams(?tab=daily|weekly)에 저장되어 공유/북마크가 가능하다
 - [ ] **TAB-03**: 탭 전환 시 해당 시트의 최신 데이터를 서버에서 새로 가져온다
 
 ### Charts
@@ -85,13 +85,13 @@
 | DATA-03 | Phase 1 | Complete |
 | DATA-04 | Phase 1 | Complete |
 | DATA-05 | Phase 1 | Complete |
-| KPI-01 | Phase 2 | Pending |
+| KPI-01 | Phase 2 | Complete |
 | KPI-02 | Phase 2 | Complete |
 | KPI-03 | Phase 2 | Complete |
 | KPI-04 | Phase 2 | Complete |
 | KPI-05 | Phase 2 | Complete |
-| TAB-01 | Phase 2 | Pending |
-| TAB-02 | Phase 2 | Pending |
+| TAB-01 | Phase 2 | Complete |
+| TAB-02 | Phase 2 | Complete |
 | TAB-03 | Phase 2 | Pending |
 | CHART-01 | Phase 3 | Pending |
 | CHART-02 | Phase 3 | Pending |
