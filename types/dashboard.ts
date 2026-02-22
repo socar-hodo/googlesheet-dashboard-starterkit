@@ -1,40 +1,30 @@
-// 대시보드 데이터 타입 정의
+// 경남울산사업팀 매출 대시보드 — 팀 전용 타입 정의
 
-/** KPI 카드 데이터 */
-export interface KpiData {
-  totalRevenue: number;       // 총 매출 (원)
-  orderCount: number;         // 주문 수
-  averageOrderValue: number;  // 평균 주문 금액 (원)
-  growthRate: number;         // 성장률 (%)
+/** Daily 시트 한 행 — 일자별 기록 */
+export interface DailyRecord {
+  date: string;             // 일자 (시트 원본 형식 그대로, 예: "2026-02-21")
+  revenue: number;          // 매출 (원)
+  profit: number;           // 손익 (원, 음수 가능)
+  usageHours: number;       // 이용시간 (시간)
+  usageCount: number;       // 이용건수
+  utilizationRate: number;  // 가동률 (%, 0-100 범위)
+  // monthlyTarget 없음 — Daily 시트에는 목표 컬럼이 존재하지 않음 (CONTEXT.md 결정)
 }
 
-/** 월별 매출 데이터 (라인 차트용) */
-export interface MonthlyRevenue {
-  month: string;     // "1월", "2월" 등
-  revenue: number;   // 매출 금액 (원)
+/** Weekly 시트 한 행 — 주차별 기록 */
+export interface WeeklyRecord {
+  week: string;             // 주차 (시트 원본 형식 그대로, 예: "1주차", "2월 3주차")
+  revenue: number;          // 매출 (원)
+  profit: number;           // 손익 (원, 음수 가능)
+  usageHours: number;       // 이용시간 (시간)
+  usageCount: number;       // 이용건수
+  utilizationRate: number;  // 가동률 (%, 0-100 범위)
+  weeklyTarget: number;     // 주차 목표 (원) — Weekly 전용 필드
 }
 
-/** 카테고리 분포 데이터 (파이 차트용) */
-export interface CategoryDistribution {
-  name: string;   // 카테고리 이름
-  value: number;  // 비율 (%)
-  fill: string;   // 차트 색상 (CSS 변수 참조)
-}
-
-/** 최근 주문 데이터 (테이블용) */
-export interface RecentOrder {
-  id: string;           // 주문 번호
-  customerName: string; // 고객명
-  product: string;      // 상품명
-  amount: number;       // 금액 (원)
-  status: "완료" | "처리중" | "취소"; // 주문 상태
-  date: string;         // 주문 날짜 (YYYY-MM-DD)
-}
-
-/** 대시보드 전체 데이터 */
-export interface DashboardData {
-  kpi: KpiData;
-  monthlyRevenue: MonthlyRevenue[];
-  categoryDistribution: CategoryDistribution[];
-  recentOrders: RecentOrder[];
+/** 대시보드 전체 데이터 컨테이너 */
+export interface TeamDashboardData {
+  daily: DailyRecord[];
+  weekly: WeeklyRecord[];
+  fetchedAt: string;        // ISO 8601 타임스탬프 (예: "2026-02-22T09:00:00.000Z")
 }
