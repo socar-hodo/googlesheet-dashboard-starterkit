@@ -12,7 +12,7 @@
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Data Layer Foundation** - 팀 전용 타입 정의, Sheets 파서, mock 폴백을 구축하여 모든 UI의 데이터 기반을 마련한다
+- [x] **Phase 1: Data Layer Foundation** - 팀 전용 타입 정의, Sheets 파서, mock 폴백을 구축하여 모든 UI의 데이터 기반을 마련한다
 - [ ] **Phase 2: Dashboard Shell + KPI Cards** - Daily/Weekly 탭 전환과 KPI 카드로 대시보드의 핵심 구조를 완성한다
 - [ ] **Phase 3: Chart Components** - 매출, 손익, 가동률, 이용 추이 차트로 데이터를 시각화한다
 - [ ] **Phase 4: Data Table + Polish** - 상세 데이터 테이블과 요약 행, 업데이트 타임스탬프를 추가한다
@@ -33,8 +33,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 2 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — 팀 전용 TypeScript 타입 정의 (DailyRecord, WeeklyRecord, TeamDashboardData)
-- [ ] 01-02-PLAN.md — 팀 mock 데이터 + Korean 숫자 파서 + getTeamDashboardData 구현
+- [x] 01-01-PLAN.md — 팀 전용 TypeScript 타입 정의 (DailyRecord, WeeklyRecord, TeamDashboardData)
+- [x] 01-02-PLAN.md — 팀 mock 데이터 + Korean 숫자 파서 + getTeamDashboardData 구현
 
 ### Phase 2: Dashboard Shell + KPI Cards
 **Goal**: 사용자가 Daily/Weekly 탭을 전환하며 핵심 KPI 지표를 목표 대비 달성률과 기간 비교로 즉시 확인할 수 있다
@@ -102,7 +102,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Data Layer Foundation | 1/2 | In Progress|  |
+| 1. Data Layer Foundation | 2/2 | Complete | 2026-02-22 |
 | 2. Dashboard Shell + KPI Cards | 0/TBD | Not started | - |
 | 3. Chart Components | 0/TBD | Not started | - |
 | 4. Data Table + Polish | 0/TBD | Not started | - |

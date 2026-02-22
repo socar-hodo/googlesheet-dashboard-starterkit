@@ -10,27 +10,27 @@ See: .planning/PROJECT.md (updated 2026-02-21)
 ## Current Position
 
 Phase: 1 of 5 (Data Layer Foundation)
-Plan: 1 of TBD in current phase
+Plan: 2 of TBD in current phase
 Status: In Progress
-Last activity: 2026-02-22 -- Plan 01-01 완료 (타입 정의 교체)
+Last activity: 2026-02-22 -- Plan 01-02 완료 (mock 데이터 + 데이터 레이어 구현)
 
-Progress: [█░░░░░░░░░] 5%
+Progress: [██░░░░░░░░] 10%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
-- Average duration: 2 min
-- Total execution time: 0.03 hours
+- Total plans completed: 2
+- Average duration: 2.5 min
+- Total execution time: 0.08 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-data-layer-foundation | 1 | 2 min | 2 min |
+| 01-data-layer-foundation | 2 | 5 min | 2.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (2 min)
+- Last 5 plans: 01-01 (2 min), 01-02 (3 min)
 - Trend: -
 
 *Updated after each plan completion*
@@ -47,10 +47,14 @@ Recent decisions affecting current work:
 - [Roadmap]: Phase 2 includes UX-01 (loading skeleton) alongside KPI/Tab requirements
 - [Phase 01-data-layer-foundation]: DailyRecord에 monthlyTarget 없음 — Daily 시트에는 목표 컬럼이 존재하지 않음 (CONTEXT.md 결정)
 - [Phase 01-data-layer-foundation]: 기존 범용 e-커머스 타입 5개(KpiData 등) 완전 삭제, DailyRecord/WeeklyRecord/TeamDashboardData로 교체
+- [Phase 01-02]: parseKoreanNumber를 export function으로 공개 — Phase 2 컴포넌트에서 포맷팅 재사용 가능
+- [Phase 01-02]: GOOGLE_DAILY_SHEET_NAME/GOOGLE_WEEKLY_SHEET_NAME 환경변수로 시트 탭명 재정의 가능
+- [Phase 01-02]: 헤더 이름 기반 컬럼 매핑(buildColumnIndex) — 인덱스 고정 파싱 완전 배제
 
 ### Pending Todos
 
-None yet.
+- Phase 2: app/(dashboard)/dashboard/page.tsx를 getTeamDashboardData()로 교체 필요
+- Phase 2: page.tsx에 `export const dynamic = 'force-dynamic'` 추가 필요
 
 ### Blockers/Concerns
 
@@ -60,5 +64,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 01-data-layer-foundation-01-01-PLAN.md (타입 정의 교체 완료)
+Stopped at: Completed 01-data-layer-foundation-01-02-PLAN.md (mock 데이터 + 데이터 레이어 구현 완료)
 Resume file: None

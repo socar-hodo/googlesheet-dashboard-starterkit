@@ -7,10 +7,10 @@
 
 ### Data Layer
 
-- [ ] **DATA-01**: Google Sheets Daily 시트에서 일자별 매출, 손익, 이용시간, 이용건수, 가동률, 매월 목표를 파싱한다
-- [ ] **DATA-02**: Google Sheets Weekly 시트에서 주차별 매출, 손익, 이용시간, 이용건수, 가동률을 파싱한다
-- [ ] **DATA-03**: 한국어 숫자 포맷("1,234,567", "₩1,234,567")을 NaN 없이 안전하게 Number로 변환한다
-- [ ] **DATA-04**: Google Sheets 미연결 또는 API 실패 시 mock 데이터로 폴백하여 페이지가 정상 렌더링된다
+- [x] **DATA-01**: Google Sheets Daily 시트에서 일자별 매출, 손익, 이용시간, 이용건수, 가동률, 매월 목표를 파싱한다
+- [x] **DATA-02**: Google Sheets Weekly 시트에서 주차별 매출, 손익, 이용시간, 이용건수, 가동률을 파싱한다
+- [x] **DATA-03**: 한국어 숫자 포맷("1,234,567", "₩1,234,567")을 NaN 없이 안전하게 Number로 변환한다
+- [x] **DATA-04**: Google Sheets 미연결 또는 API 실패 시 mock 데이터로 폴백하여 페이지가 정상 렌더링된다
 - [x] **DATA-05**: 기존 범용 타입(KpiData, MonthlyRevenue, CategoryDistribution, RecentOrder)을 팀 전용 타입(DailyRecord, WeeklyRecord, TeamKpi, TeamDashboardData)으로 완전 교체한다
 
 ### KPI Cards
@@ -44,7 +44,7 @@
 ### UX
 
 - [ ] **UX-01**: 데이터 로딩 중 스켈레턴 플레이스홀더를 표시한다
-- [ ] **UX-02**: 페이지 접속 및 새로고침 시 Google Sheets에서 최신 데이터를 가져온다
+- [x] **UX-02**: 페이지 접속 및 새로고침 시 Google Sheets에서 최신 데이터를 가져온다
 - [ ] **UX-03**: 대시보드 상단에 마지막 데이터 업데이트 타임스탬프를 표시한다
 - [ ] **UX-04**: 기존 스타터킷 범용 컴포넌트(revenue-chart, category-chart, recent-orders-table)를 삭제하고 팀 전용 컴포넌트로 교체한다
 
@@ -80,10 +80,10 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DATA-01 | Phase 1 | Pending |
-| DATA-02 | Phase 1 | Pending |
-| DATA-03 | Phase 1 | Pending |
-| DATA-04 | Phase 1 | Pending |
+| DATA-01 | Phase 1 | Complete |
+| DATA-02 | Phase 1 | Complete |
+| DATA-03 | Phase 1 | Complete |
+| DATA-04 | Phase 1 | Complete |
 | DATA-05 | Phase 1 | Complete |
 | KPI-01 | Phase 2 | Pending |
 | KPI-02 | Phase 2 | Pending |
@@ -102,7 +102,7 @@
 | TABLE-02 | Phase 4 | Pending |
 | TABLE-03 | Phase 4 | Pending |
 | UX-01 | Phase 2 | Pending |
-| UX-02 | Phase 1 | Pending |
+| UX-02 | Phase 1 | Complete |
 | UX-03 | Phase 4 | Pending |
 | UX-04 | Phase 5 | Pending |
 
@@ -113,4 +113,4 @@
 
 ---
 *Requirements defined: 2026-02-21*
-*Last updated: 2026-02-21 after roadmap creation*
+*Last updated: 2026-02-22 after Phase 1 completion (01-02)*
