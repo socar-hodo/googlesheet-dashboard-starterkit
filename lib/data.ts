@@ -7,24 +7,26 @@ import { mockTeamDashboardData } from "./mock-data";
 const DAILY_SHEET = process.env.GOOGLE_DAILY_SHEET_NAME ?? "일별";
 const WEEKLY_SHEET = process.env.GOOGLE_WEEKLY_SHEET_NAME ?? "주차별";
 
-// 헤더 이름 상수 (RESEARCH.md Pattern 2 — 인덱스 고정 방식 사용 금지)
+// 헤더 이름 상수 — 실제 Google Sheets 컬럼명과 일치해야 한다
+// 3행(그룹 헤더)과 4행(세부 헤더) 중 비어있지 않은 쪽을 사용 (buildMergedColumnIndex 참고)
 const DAILY_HEADERS = {
   date: "일자",
-  revenue: "매출",
-  profit: "손익",
-  usageHours: "이용시간",
-  usageCount: "이용건수",
-  utilizationRate: "가동률",
+  revenue: "회계매출",   // 3행 그룹 헤더
+  profit: "손익",        // 3행 그룹 헤더
+  usageHours: "이용시간", // 3행 그룹 헤더 (총합)
+  usageCount: "이용건수", // 3행 그룹 헤더 (총합)
+  utilizationRate: "반납가동률", // 4행 세부 헤더
 } as const;
 
+// weekly 시트 4행은 영어 식별자를 사용함 (buildMergedColumnIndex에서 row4 우선)
 const WEEKLY_HEADERS = {
-  week: "주차",
-  revenue: "매출",
-  profit: "손익",
-  usageHours: "이용시간",
-  usageCount: "이용건수",
-  utilizationRate: "가동률",
-  weeklyTarget: "목표",
+  week: "주차",           // row3 (row4 비어있음)
+  revenue: "revenue",     // row4 영어 식별자 → 총 매출
+  profit: "손익",         // weekly에 없음 → 0 fallback
+  usageHours: "utime",    // row4 영어 식별자 → 총 이용시간
+  usageCount: "nuse",     // row4 영어 식별자 → 총 이용건수
+  utilizationRate: "반납가동률", // weekly에 없음 → 0 fallback
+  weeklyTarget: "목표",   // weekly에 없음 → 0 fallback
 } as const;
 
 // --- 유틸리티 함수 ---
@@ -39,6 +41,20 @@ function buildColumnIndex(headers: string[]): Map<string, number> {
     }
   });
   return map;
+}
+
+/**
+ * 2단 헤더(3행 + 4행)를 병합하여 컬럼 인덱스 Map을 반환한다.
+ * 각 컬럼에서 4행이 비어있으면 3행 값을 사용 (그룹 헤더 → 총합 컬럼으로 취급).
+ */
+function buildMergedColumnIndex(row3: string[], row4: string[]): Map<string, number> {
+  const maxLen = Math.max(row3.length, row4.length);
+  const merged = Array.from({ length: maxLen }, (_, i) => {
+    const r4 = (row4[i] ?? "").trim();
+    const r3 = (row3[i] ?? "").trim();
+    return r4 !== "" ? r4 : r3;
+  });
+  return buildColumnIndex(merged);
 }
 
 /**
@@ -83,9 +99,10 @@ function safeNumber(value: string | null | undefined, fallback: number = 0): num
  * 헤더 이름 기반 컬럼 매핑을 사용하여 시트 구조 변경에 강건하다.
  */
 function parseDailySheet(rows: string[][]): DailyRecord[] {
-  if (rows.length < 2) return [];
+  // rows[0] = 3행(그룹 헤더), rows[1] = 4행(세부 헤더), rows[2]~ = 데이터
+  if (rows.length < 3) return [];
 
-  const colIndex = buildColumnIndex(rows[0]);
+  const colIndex = buildMergedColumnIndex(rows[0], rows[1]);
 
   // 필수 헤더가 없으면 경고
   for (const [, headerName] of Object.entries(DAILY_HEADERS)) {
@@ -99,9 +116,9 @@ function parseDailySheet(rows: string[][]): DailyRecord[] {
     return idx !== undefined ? row[idx] : undefined;
   };
 
-  // 빈 행(모든 셀이 빈 문자열) 필터링 후 파싱
+  // 빈 행(모든 셀이 빈 문자열) 필터링 후 파싱 (2행 헤더 스킵)
   return rows
-    .slice(1)
+    .slice(2)
     .filter((row) => row.some((cell) => cell.trim() !== ""))
     .map((row): DailyRecord => ({
       date: (getCell(row, DAILY_HEADERS.date) ?? "").trim(),
@@ -118,9 +135,10 @@ function parseDailySheet(rows: string[][]): DailyRecord[] {
  * weeklyTarget 필드를 포함하여 WeeklyRecord 객체를 생성한다.
  */
 function parseWeeklySheet(rows: string[][]): WeeklyRecord[] {
-  if (rows.length < 2) return [];
+  // rows[0] = 3행(그룹 헤더), rows[1] = 4행(세부 헤더), rows[2]~ = 데이터
+  if (rows.length < 3) return [];
 
-  const colIndex = buildColumnIndex(rows[0]);
+  const colIndex = buildMergedColumnIndex(rows[0], rows[1]);
 
   // 필수 헤더가 없으면 경고
   for (const [, headerName] of Object.entries(WEEKLY_HEADERS)) {
@@ -134,9 +152,9 @@ function parseWeeklySheet(rows: string[][]): WeeklyRecord[] {
     return idx !== undefined ? row[idx] : undefined;
   };
 
-  // 빈 행(모든 셀이 빈 문자열) 필터링 후 파싱
+  // 빈 행(모든 셀이 빈 문자열) 필터링 후 파싱 (2행 헤더 스킵)
   return rows
-    .slice(1)
+    .slice(2)
     .filter((row) => row.some((cell) => cell.trim() !== ""))
     .map((row): WeeklyRecord => ({
       week: (getCell(row, WEEKLY_HEADERS.week) ?? "").trim(),
@@ -169,10 +187,10 @@ export async function getTeamDashboardData(): Promise<TeamDashboardData> {
   }
 
   try {
-    // 두 시트를 병렬로 fetch (open-ended range 사용)
+    // 두 시트를 병렬로 fetch (3행부터: 2단 헤더 대응, 넓은 범위)
     const [dailyRows, weeklyRows] = await Promise.all([
-      fetchSheetData(`${DAILY_SHEET}!A:F`),
-      fetchSheetData(`${WEEKLY_SHEET}!A:G`),
+      fetchSheetData(`${DAILY_SHEET}!A3:DZ`),
+      fetchSheetData(`${WEEKLY_SHEET}!A3:DZ`),
     ]);
 
     // 개별 시트 실패 시 해당 mock 배열로 대체
