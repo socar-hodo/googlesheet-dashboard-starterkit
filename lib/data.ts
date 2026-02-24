@@ -7,26 +7,25 @@ import { mockTeamDashboardData } from "./mock-data";
 const DAILY_SHEET = process.env.GOOGLE_DAILY_SHEET_NAME ?? "일별";
 const WEEKLY_SHEET = process.env.GOOGLE_WEEKLY_SHEET_NAME ?? "주차별";
 
-// 헤더 이름 상수 — 실제 Google Sheets 컬럼명과 일치해야 한다
-// 3행(그룹 헤더)과 4행(세부 헤더) 중 비어있지 않은 쪽을 사용 (buildMergedColumnIndex 참고)
+// 헤더 이름 상수 — 실제 Google Sheets 2행 컬럼명과 일치해야 한다
+// 1행: 컬럼 문자 식별자, 2행: 실제 헤더, 3행~: 데이터
 const DAILY_HEADERS = {
   date: "일자",
-  revenue: "회계매출",   // 3행 그룹 헤더
-  profit: "손익",        // 3행 그룹 헤더
-  usageHours: "이용시간", // 3행 그룹 헤더 (총합)
-  usageCount: "이용건수", // 3행 그룹 헤더 (총합)
-  utilizationRate: "반납가동률", // 4행 세부 헤더
+  revenue: "회계매출",
+  profit: "손익",
+  usageHours: "이용시간",
+  usageCount: "이용건수",
+  utilizationRate: "가동률",
 } as const;
 
-// weekly 시트 4행은 영어 식별자를 사용함 (buildMergedColumnIndex에서 row4 우선)
 const WEEKLY_HEADERS = {
-  week: "주차",           // row3 (row4 비어있음)
-  revenue: "revenue",     // row4 영어 식별자 → 총 매출
-  profit: "주간 손익",    // row3 col 106 ("손익" col 107은 GPM 비율)
-  usageHours: "utime",    // row4 영어 식별자 → 총 이용시간
-  usageCount: "nuse",     // row4 영어 식별자 → 총 이용건수
-  utilizationRate: "반납가동률", // weekly에 없음 → 0 fallback
-  weeklyTarget: "목표매출",   // row3 col 122
+  week: "주차",
+  revenue: "회계매출",
+  profit: "손익",
+  usageHours: "이용시간",
+  usageCount: "이용건수",
+  utilizationRate: "가동률",
+  weeklyTarget: "매출 목표",
 } as const;
 
 // --- 유틸리티 함수 ---
@@ -41,20 +40,6 @@ function buildColumnIndex(headers: string[]): Map<string, number> {
     }
   });
   return map;
-}
-
-/**
- * 2단 헤더(3행 + 4행)를 병합하여 컬럼 인덱스 Map을 반환한다.
- * 각 컬럼에서 4행이 비어있으면 3행 값을 사용 (그룹 헤더 → 총합 컬럼으로 취급).
- */
-function buildMergedColumnIndex(row3: string[], row4: string[]): Map<string, number> {
-  const maxLen = Math.max(row3.length, row4.length);
-  const merged = Array.from({ length: maxLen }, (_, i) => {
-    const r4 = (row4[i] ?? "").trim();
-    const r3 = (row3[i] ?? "").trim();
-    return r4 !== "" ? r4 : r3;
-  });
-  return buildColumnIndex(merged);
 }
 
 /**
@@ -99,10 +84,10 @@ function safeNumber(value: string | null | undefined, fallback: number = 0): num
  * 헤더 이름 기반 컬럼 매핑을 사용하여 시트 구조 변경에 강건하다.
  */
 function parseDailySheet(rows: string[][]): DailyRecord[] {
-  // rows[0] = 3행(그룹 헤더), rows[1] = 4행(세부 헤더), rows[2]~ = 데이터
+  // rows[0] = 1행(컬럼 식별자), rows[1] = 2행(헤더), rows[2]~ = 데이터
   if (rows.length < 3) return [];
 
-  const colIndex = buildMergedColumnIndex(rows[0], rows[1]);
+  const colIndex = buildColumnIndex(rows[1]);
 
   // 필수 헤더가 없으면 경고
   for (const [, headerName] of Object.entries(DAILY_HEADERS)) {
@@ -136,14 +121,13 @@ function parseDailySheet(rows: string[][]): DailyRecord[] {
  * weeklyTarget 필드를 포함하여 WeeklyRecord 객체를 생성한다.
  */
 function parseWeeklySheet(rows: string[][]): WeeklyRecord[] {
-  // rows[0] = 3행(그룹 헤더), rows[1] = 4행(세부 헤더), rows[2]~ = 데이터
+  // rows[0] = 1행(컬럼 식별자), rows[1] = 2행(헤더), rows[2]~ = 데이터
   if (rows.length < 3) return [];
 
-  const colIndex = buildMergedColumnIndex(rows[0], rows[1]);
+  const colIndex = buildColumnIndex(rows[1]);
 
-  // 필수 헤더가 없으면 경고 (utilizationRate는 weekly에 없음 — 의도적 0 fallback, 경고 제외)
-  for (const [key, headerName] of Object.entries(WEEKLY_HEADERS)) {
-    if (key === 'utilizationRate') continue;
+  // 필수 헤더가 없으면 경고
+  for (const [, headerName] of Object.entries(WEEKLY_HEADERS)) {
     if (!colIndex.has(headerName)) {
       console.warn(`[parseWeeklySheet] 헤더를 찾을 수 없음: "${headerName}"`);
     }
@@ -190,11 +174,10 @@ export async function getTeamDashboardData(): Promise<TeamDashboardData> {
   }
 
   try {
-    // daily: 헤더가 rows 1-2에 위치 → A1부터 fetch
-    // weekly: 헤더가 rows 3-4에 위치 → A3부터 fetch (2단 헤더 구조)
+    // 두 시트 모두 1행(컬럼 식별자) + 2행(헤더) + 3행~(데이터) 구조
     const [dailyRows, weeklyRows] = await Promise.all([
       fetchSheetData(`${DAILY_SHEET}!A1:DZ`),
-      fetchSheetData(`${WEEKLY_SHEET}!A3:DZ`),
+      fetchSheetData(`${WEEKLY_SHEET}!A1:DZ`),
     ]);
 
     // 개별 시트 실패 시 해당 mock 배열로 대체

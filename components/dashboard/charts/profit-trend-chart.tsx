@@ -1,6 +1,6 @@
 "use client";
 // components/dashboard/charts/profit-trend-chart.tsx
-// CHART-02: 손익 추이 — BarChart + Cell (양수 녹색, 음수 빨간색)
+// CHART-02: GPM 추이 — BarChart + Cell (양수 녹색, 음수 빨간색)
 
 import {
   BarChart,
@@ -42,13 +42,13 @@ export function ProfitTrendChart({ records, tab: _tab }: ProfitTrendChartProps) 
       _tab === "daily"
         ? formatDailyLabel((r as DailyRecord).date)
         : formatWeeklyLabel((r as WeeklyRecord).week),
-    profit: r.profit,
+    gpm: r.revenue > 0 ? (r.profit / r.revenue) * 100 : 0,
   }));
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>손익 추이</CardTitle>
+        <CardTitle>GPM 추이</CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={280} minWidth={0}>
@@ -63,15 +63,13 @@ export function ProfitTrendChart({ records, tab: _tab }: ProfitTrendChartProps) 
               />
               <YAxis
                 tick={{ fill: colors.axis, fontSize: 11 }}
-                tickFormatter={(v) =>
-                  `${(v / 10000).toLocaleString()}만`
-                }
-                width={55}
+                tickFormatter={(v) => `${v.toFixed(0)}%`}
+                width={45}
               />
               <Tooltip
                 formatter={(value) => [
-                  `₩${(Math.abs(Number(value)) / 10000).toLocaleString()}만`,
-                  Number(value) >= 0 ? "수익" : "손실",
+                  `${Number(value).toFixed(1)}%`,
+                  "GPM",
                 ]}
                 contentStyle={{
                   backgroundColor: colors.tooltip.bg,
@@ -80,12 +78,12 @@ export function ProfitTrendChart({ records, tab: _tab }: ProfitTrendChartProps) 
                   fontSize: "12px",
                 }}
               />
-              <Bar dataKey="profit" name="손익" radius={[2, 2, 0, 0]}>
+              <Bar dataKey="gpm" name="GPM" radius={[2, 2, 0, 0]}>
                 {chartData.map((entry, index) => (
                   <Cell
                     key={`cell-${index}`}
                     fill={
-                      entry.profit >= 0
+                      entry.gpm >= 0
                         ? colors.profitPositive
                         : colors.profitNegative
                     }

@@ -36,10 +36,18 @@ export function KpiCards({ data, tab }: KpiCardsProps) {
         icon: <TrendingUp className="h-4 w-4" />,
       },
       {
-        title: '손익',
-        value: formatKpiValue(current.profit, '원'),
-        delta: previous ? calcDelta(current.profit, previous.profit) : null,
-        unit: '원' as const,
+        title: 'GPM',
+        value: formatKpiValue(
+          current.revenue > 0 ? (current.profit / current.revenue) * 100 : 0,
+          '%'
+        ),
+        delta: previous
+          ? calcDelta(
+              current.revenue > 0 ? (current.profit / current.revenue) * 100 : 0,
+              previous.revenue > 0 ? (previous.profit / previous.revenue) * 100 : 0
+            )
+          : null,
+        unit: '%' as const,
         icon: <DollarSign className="h-4 w-4" />,
       },
       {
@@ -101,12 +109,20 @@ export function KpiCards({ data, tab }: KpiCardsProps) {
       icon: <TrendingUp className="h-4 w-4" />,
     },
     {
-      title: '손익',
-      value: formatKpiValue(current.profit, '원'),
+      title: 'GPM',
+      value: formatKpiValue(
+        current.revenue > 0 ? (current.profit / current.revenue) * 100 : 0,
+        '%'
+      ),
       target: undefined as string | undefined,
       achievementRate: undefined as number | undefined,
-      delta: previous ? calcDelta(current.profit, previous.profit) : null,
-      unit: '원' as const,
+      delta: previous
+        ? calcDelta(
+            current.revenue > 0 ? (current.profit / current.revenue) * 100 : 0,
+            previous.revenue > 0 ? (previous.profit / previous.revenue) * 100 : 0
+          )
+        : null,
+      unit: '%' as const,
       icon: <DollarSign className="h-4 w-4" />,
     },
     {
