@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-21)
 
 **Core value:** 오늘 매출이 목표 대비 어디에 있는지, 지난 주/지난 달 대비 어떻게 변하고 있는지를 한 페이지에서 즉시 파악할 수 있어야 한다.
-**Current focus:** Phase 4: Data Table Polish
+**Current focus:** Phase 5: Cleanup Migration
 
 ## Current Position
 
-Phase: 4 of 5 (Data Table Polish)
-Plan: 3 of 3 in current phase
-Status: Phase Complete — Plan 04-03 완료 (page.tsx DataTable + UpdateTimestamp 통합, GPM 전환)
-Last activity: 2026-02-24 -- Plan 04-03 완료 (DataTable+UpdateTimestamp 통합, 손익→GPM 전환)
+Phase: 5 of 5 (Cleanup Migration)
+Plan: 1 of 1 in current phase
+Status: Checkpoint — Plan 05-01 Task 3 checkpoint:human-verify 대기 중 (레거시 컴포넌트 3개 삭제 + 빌드 성공 완료)
+Last activity: 2026-02-24 -- Plan 05-01 Tasks 1-2 완료 (레거시 컴포넌트 3개 삭제, npm run build 성공)
 
-Progress: [███████████████] 93%
+Progress: [████████████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
-- Average duration: 3.1 min
-- Total execution time: 0.32 hours
+- Total plans completed: 8
+- Average duration: 2.8 min
+- Total execution time: 0.34 hours
 
 **By Phase:**
 
@@ -31,9 +31,10 @@ Progress: [███████████████] 93%
 | 02-dashboard-shell-kpi-cards | 3 | 12 min | 4.0 min |
 | 03-chart-components | 2 | 6 min | 3.0 min |
 | 04-data-table-polish | 3 | 20 min | 6.7 min |
+| 05-cleanup-migration | 1 | 1 min | 1.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-02 (2 min), 02-03 (5 min), 03-01 (2 min), 03-03 (4 min), 04-01 (3 min)
+- Last 5 plans: 02-03 (5 min), 03-01 (2 min), 03-03 (4 min), 04-01 (3 min), 05-01 (1 min)
 - Trend: steady
 
 *Updated after each plan completion*
@@ -45,6 +46,7 @@ Progress: [███████████████] 93%
 | Phase 04-data-table-polish P01 | 3 | 2 tasks | 2 files |
 | Phase 04-data-table-polish P02 | 2 | 1 tasks | 1 files |
 | Phase 04-data-table-polish P03 | 15 | 2 tasks | 5 files |
+| Phase 05-cleanup-migration P01 | 1 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -89,6 +91,7 @@ Recent decisions affecting current work:
 - [Phase 04-03]: GPM 추이 임계값 0.05%p 미만 → '-' 표시 — 일별 소수점 노이즈 제거
 - [Phase 04-03]: 시트 파싱 buildMergedColumnIndex 제거 → rows[1] 단일 헤더 기준 buildColumnIndex
 - [Phase 04-03]: weekly 시트 fetch A3 → A1 변경 — 실제 시트 구조(1행 식별자+2행 헤더) 반영
+- [Phase 05-01]: 삭제 전 grep 검사로 외부 import 없음 확인 — 3개 파일 자체 정의만 존재하여 안전 삭제 확인
 
 ### Pending Todos
 
@@ -102,5 +105,5 @@ None
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 04-data-table-polish-04-03-PLAN.md (page.tsx DataTable+UpdateTimestamp 통합, GPM 전환)
+Stopped at: Plan 05-01 Task 3 checkpoint:human-verify 대기 (레거시 컴포넌트 삭제+빌드성공 완료, 브라우저 확인 필요)
 Resume file: None
