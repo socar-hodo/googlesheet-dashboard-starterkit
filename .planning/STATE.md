@@ -5,37 +5,37 @@
 See: .planning/PROJECT.md (updated 2026-02-21)
 
 **Core value:** 오늘 매출이 목표 대비 어디에 있는지, 지난 주/지난 달 대비 어떻게 변하고 있는지를 한 페이지에서 즉시 파악할 수 있어야 한다.
-**Current focus:** Phase 2: Dashboard Shell + KPI Cards
+**Current focus:** Phase 3: Charts
 
 ## Current Position
 
-Phase: 2 of 5 (Dashboard Shell + KPI Cards)
-Plan: 2 of 3 in current phase
-Status: In Progress
-Last activity: 2026-02-22 -- Plan 02-02 완료 (TabNav + KpiCard + KpiCards 구현)
+Phase: 3 of 5 (Charts)
+Plan: 0 of ? in current phase
+Status: Phase 2 Complete — Ready for Phase 3
+Last activity: 2026-02-24 -- Plan 02-03 완료 (page.tsx 교체 + Phase 2 전체 통합 + 브라우저 검증 통과)
 
-Progress: [████░░░░░░] 27%
+Progress: [██████░░░░] 40%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: 3.0 min
-- Total execution time: 0.33 hours
+- Total plans completed: 5
+- Average duration: 3.2 min
+- Total execution time: 0.27 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-data-layer-foundation | 2 | 5 min | 2.5 min |
-| 02-dashboard-shell-kpi-cards | 2 | 7 min | 3.5 min |
+| 02-dashboard-shell-kpi-cards | 3 | 12 min | 4.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (2 min), 01-02 (3 min), 02-01 (5 min), 02-02 (2 min)
-- Trend: -
+- Last 5 plans: 01-01 (2 min), 01-02 (3 min), 02-01 (5 min), 02-02 (2 min), 02-03 (5 min)
+- Trend: steady
 
 *Updated after each plan completion*
-| Phase 02-dashboard-shell-kpi-cards P02 | 2 | 3 tasks | 3 files |
+| Phase 02-dashboard-shell-kpi-cards P03 | 2 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -59,11 +59,14 @@ Recent decisions affecting current work:
 - [Phase 02-dashboard-shell-kpi-cards]: Daily 탭에서 달성률/Progress 바 숨김 — DailyRecord에 목표값 없음 (Phase 1 결정 준수)
 - [Phase 02-dashboard-shell-kpi-cards]: Weekly 탭에서 매출 카드만 weeklyTarget 대비 달성률 표시 — 타 KPI는 목표값 없음
 - [Phase 02-dashboard-shell-kpi-cards]: Progress value 상한 Math.min(achievementRate, 100) — 100% 초과 시 Progress 바 오버플로우 방지
+- [Phase 02-03]: Next.js 16 searchParams는 Promise — await 필수, 타입도 Promise<{tab?:string}> 선언
+- [Phase 02-03]: TabNav(useSearchParams)는 Suspense fallback=null로 래핑 — SSR 오류 방지
+- [Phase 02-03]: Suspense key={activeTab} — 탭 전환 시 스켈레턴 재마운트 (UX-01 구현)
+- [Phase 02-03]: lib/data.ts buildMergedColumnIndex — 2단 헤더 병합 셀 빈 문자열을 앞 값으로 전파
 
 ### Pending Todos
 
-- Phase 2: app/(dashboard)/dashboard/page.tsx를 getTeamDashboardData()로 교체 필요 (02-03)
-- Phase 2: page.tsx에 `export const dynamic = 'force-dynamic'` 추가 필요 (02-03)
+None
 
 ### Blockers/Concerns
 
@@ -72,6 +75,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-02-22
-Stopped at: Completed 02-dashboard-shell-kpi-cards-02-02-PLAN.md (TabNav + KpiCard + KpiCards 구현 완료)
+Last session: 2026-02-24
+Stopped at: Completed 02-dashboard-shell-kpi-cards-02-03-PLAN.md (page.tsx 교체 + Phase 2 통합 완성 + 브라우저 검증 통과)
 Resume file: None

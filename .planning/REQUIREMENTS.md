@@ -25,7 +25,7 @@
 
 - [x] **TAB-01**: 단일 페이지에서 Daily/Weekly 탭 전환이 가능하다
 - [x] **TAB-02**: 탭 상태가 URL searchParams(?tab=daily|weekly)에 저장되어 공유/북마크가 가능하다
-- [ ] **TAB-03**: 탭 전환 시 해당 시트의 최신 데이터를 서버에서 새로 가져온다
+- [x] **TAB-03**: 탭 전환 시 해당 시트의 최신 데이터를 서버에서 새로 가져온다
 
 ### Charts
 
@@ -92,7 +92,7 @@
 | KPI-05 | Phase 2 | Complete |
 | TAB-01 | Phase 2 | Complete |
 | TAB-02 | Phase 2 | Complete |
-| TAB-03 | Phase 2 | Pending |
+| TAB-03 | Phase 2 | Complete |
 | CHART-01 | Phase 3 | Pending |
 | CHART-02 | Phase 3 | Pending |
 | CHART-03 | Phase 3 | Pending |
