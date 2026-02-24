@@ -80,7 +80,7 @@ function DailyTable({ records }: { records: DailyRecord[] }) {
   const avgGpm = len > 0 ? gpms.reduce((a, b) => a + b, 0) / len : 0;
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-auto max-h-[70vh]">
       <Table>
         <TableHeader className="sticky top-0 bg-background z-10">
           <TableRow>
@@ -153,7 +153,7 @@ function WeeklyTable({ records }: { records: WeeklyRecord[] }) {
   const avgGpm = len > 0 ? gpms.reduce((a, b) => a + b, 0) / len : 0;
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-auto max-h-[70vh]">
       <Table>
         <TableHeader className="sticky top-0 bg-background z-10">
           <TableRow>
