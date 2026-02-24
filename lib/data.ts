@@ -22,11 +22,11 @@ const DAILY_HEADERS = {
 const WEEKLY_HEADERS = {
   week: "주차",           // row3 (row4 비어있음)
   revenue: "revenue",     // row4 영어 식별자 → 총 매출
-  profit: "손익",         // weekly에 없음 → 0 fallback
+  profit: "주간 손익",    // row3 col 106 ("손익" col 107은 GPM 비율)
   usageHours: "utime",    // row4 영어 식별자 → 총 이용시간
   usageCount: "nuse",     // row4 영어 식별자 → 총 이용건수
   utilizationRate: "반납가동률", // weekly에 없음 → 0 fallback
-  weeklyTarget: "목표",   // weekly에 없음 → 0 fallback
+  weeklyTarget: "목표매출",   // row3 col 122
 } as const;
 
 // --- 유틸리티 함수 ---
@@ -64,8 +64,8 @@ function buildMergedColumnIndex(row3: string[], row4: string[]): Map<string, num
  * - 변환 결과가 NaN이면 console.warn 후 null 반환
  */
 export function parseKoreanNumber(value: string | null | undefined): number | null {
-  // 빈 값 처리
-  if (value === undefined || value === null || value === "") {
+  // 빈 값 처리 (undefined, null, 빈 문자열, "-" 대시 표기 모두 0)
+  if (value === undefined || value === null || value === "" || value.trim() === "-") {
     return 0;
   }
 
@@ -116,10 +116,11 @@ function parseDailySheet(rows: string[][]): DailyRecord[] {
     return idx !== undefined ? row[idx] : undefined;
   };
 
-  // 빈 행(모든 셀이 빈 문자열) 필터링 후 파싱 (2행 헤더 스킵)
+  // 일자 컬럼이 비어있는 행 제거 (미입력 trailing 행, 합계 행 등 방지)
+  const dateIdx = colIndex.get(DAILY_HEADERS.date) ?? -1;
   return rows
     .slice(2)
-    .filter((row) => row.some((cell) => cell.trim() !== ""))
+    .filter((row) => (row[dateIdx] ?? "").trim() !== "")
     .map((row): DailyRecord => ({
       date: (getCell(row, DAILY_HEADERS.date) ?? "").trim(),
       revenue: safeNumber(getCell(row, DAILY_HEADERS.revenue)),
@@ -152,10 +153,11 @@ function parseWeeklySheet(rows: string[][]): WeeklyRecord[] {
     return idx !== undefined ? row[idx] : undefined;
   };
 
-  // 빈 행(모든 셀이 빈 문자열) 필터링 후 파싱 (2행 헤더 스킵)
+  // 주차 컬럼이 비어있는 행 제거 (미입력 trailing 행 방지)
+  const weekIdx = colIndex.get(WEEKLY_HEADERS.week) ?? -1;
   return rows
     .slice(2)
-    .filter((row) => row.some((cell) => cell.trim() !== ""))
+    .filter((row) => (row[weekIdx] ?? "").trim() !== "")
     .map((row): WeeklyRecord => ({
       week: (getCell(row, WEEKLY_HEADERS.week) ?? "").trim(),
       revenue: safeNumber(getCell(row, WEEKLY_HEADERS.revenue)),
