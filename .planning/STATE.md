@@ -11,8 +11,8 @@ See: .planning/PROJECT.md (updated 2026-02-21)
 
 Phase: 3 of 5 (Charts)
 Plan: 3 of 4 in current phase
-Status: In Progress — 03-03 완료 (CHART-03 가동률 추이 LineChart + ReferenceLine, CHART-04 이용건수/이용시간 이중 YAxis)
-Last activity: 2026-02-24 -- Plan 03-03 완료 (utilization-trend-chart.tsx, usage-trend-chart.tsx)
+Status: In Progress — 03-02 완료 (RevenueTrendChart + ProfitTrendChart), 03-03 완료 (UtilizationTrendChart + UsageTrendChart)
+Last activity: 2026-02-24 -- Plan 03-02 완료 (revenue-trend-chart.tsx, profit-trend-chart.tsx)
 
 Progress: [████████░░] 54%
 
@@ -39,6 +39,7 @@ Progress: [████████░░] 54%
 | Phase 02-dashboard-shell-kpi-cards P03 | 2 | 2 tasks | 2 files |
 | Phase 03-chart-components P01 | 2 | 2 tasks | 3 files |
 | Phase 03-chart-components P03 | 4 | 2 tasks | 2 files |
+| Phase 03-chart-components P02 | 4 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -72,6 +73,7 @@ Recent decisions affecting current work:
 - [Phase 03-03]: ComposedChart 사용 for usage-trend — BarChart도 가능하나 RESEARCH.md Pattern 6 일관성 유지
 - [Phase 03-03]: yAxisId="left"/"right" Bar 모두 명시 — Pitfall 3(yAxisId 불일치 경고) 사전 방지
 - [Phase 03-03]: .next 캐시 오염 시 rm -rf .next 후 클린 빌드 — Next.js 16 dev 타입 캐시 이슈
+- [Phase 03-chart-components]: formatDailyLabel/formatWeeklyLabel 로컬 선언 — 별도 utils 파일 없이 각 차트 파일에 로컬 정의
 
 ### Pending Todos
 
@@ -85,5 +87,5 @@ None
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 03-chart-components-03-03-PLAN.md (CHART-03 가동률 추이 LineChart + ReferenceLine, CHART-04 이용건수/이용시간 이중 YAxis)
+Stopped at: Completed 03-chart-components-03-02-PLAN.md (RevenueTrendChart CHART-01 + ProfitTrendChart CHART-02)
 Resume file: None
