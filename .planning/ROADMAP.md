@@ -63,11 +63,13 @@ Plans:
   3. 가동률 추이 차트가 라인 차트로 표시되며 임계값 기준선이 표시된다
   4. 이용건수/이용시간 추이 차트가 기간별로 표시된다
   5. 모든 차트가 다크/라이트 테마에서 올바른 색상으로 렌더링된다
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] 03-01: TBD
-- [ ] 03-02: TBD
+- [ ] 03-01-PLAN.md — 차트 공유 인프라 (chart-colors.ts, ChartsSkeleton, ChartsSection 래퍼)
+- [ ] 03-02-PLAN.md — 매출 추이 차트(CHART-01) + 손익 추이 차트(CHART-02)
+- [ ] 03-03-PLAN.md — 가동률 추이 차트(CHART-03) + 이용건수/이용시간 차트(CHART-04)
+- [ ] 03-04-PLAN.md — ChartsSection 최종 연결 + page.tsx 통합 + 브라우저 검증(CHART-05)
 
 ### Phase 4: Data Table + Polish
 **Goal**: 상세 데이터를 테이블로 확인하고, 합계/평균 요약과 마지막 업데이트 시각을 볼 수 있다
