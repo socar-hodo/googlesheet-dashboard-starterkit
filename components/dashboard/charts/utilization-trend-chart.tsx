@@ -41,8 +41,7 @@ export function UtilizationTrendChart({ records, tab }: UtilizationTrendChartPro
         <CardTitle>가동률 추이</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="h-[280px]">
-          <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height={280} minWidth={0}>
             <LineChart
               data={chartData}
               margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
@@ -92,8 +91,7 @@ export function UtilizationTrendChart({ records, tab }: UtilizationTrendChartPro
                 name="가동률"
               />
             </LineChart>
-          </ResponsiveContainer>
-        </div>
+        </ResponsiveContainer>
       </CardContent>
     </Card>
   );

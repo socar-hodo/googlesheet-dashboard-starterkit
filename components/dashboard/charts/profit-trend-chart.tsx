@@ -51,8 +51,7 @@ export function ProfitTrendChart({ records, tab: _tab }: ProfitTrendChartProps) 
         <CardTitle>손익 추이</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="h-[280px]">
-          <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height={280} minWidth={0}>
             <BarChart
               data={chartData}
               margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
@@ -94,8 +93,7 @@ export function ProfitTrendChart({ records, tab: _tab }: ProfitTrendChartProps) 
                 ))}
               </Bar>
             </BarChart>
-          </ResponsiveContainer>
-        </div>
+        </ResponsiveContainer>
       </CardContent>
     </Card>
   );

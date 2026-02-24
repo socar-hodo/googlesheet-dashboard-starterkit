@@ -141,8 +141,9 @@ function parseWeeklySheet(rows: string[][]): WeeklyRecord[] {
 
   const colIndex = buildMergedColumnIndex(rows[0], rows[1]);
 
-  // 필수 헤더가 없으면 경고
-  for (const [, headerName] of Object.entries(WEEKLY_HEADERS)) {
+  // 필수 헤더가 없으면 경고 (utilizationRate는 weekly에 없음 — 의도적 0 fallback, 경고 제외)
+  for (const [key, headerName] of Object.entries(WEEKLY_HEADERS)) {
+    if (key === 'utilizationRate') continue;
     if (!colIndex.has(headerName)) {
       console.warn(`[parseWeeklySheet] 헤더를 찾을 수 없음: "${headerName}"`);
     }
@@ -189,9 +190,10 @@ export async function getTeamDashboardData(): Promise<TeamDashboardData> {
   }
 
   try {
-    // 두 시트를 병렬로 fetch (3행부터: 2단 헤더 대응, 넓은 범위)
+    // daily: 헤더가 rows 1-2에 위치 → A1부터 fetch
+    // weekly: 헤더가 rows 3-4에 위치 → A3부터 fetch (2단 헤더 구조)
     const [dailyRows, weeklyRows] = await Promise.all([
-      fetchSheetData(`${DAILY_SHEET}!A3:DZ`),
+      fetchSheetData(`${DAILY_SHEET}!A1:DZ`),
       fetchSheetData(`${WEEKLY_SHEET}!A3:DZ`),
     ]);
 
