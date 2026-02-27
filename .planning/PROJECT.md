@@ -8,6 +8,15 @@
 
 **오늘 매출이 목표 대비 어디에 있는지, 지난 주/지난 달 대비 어떻게 변하고 있는지를 한 페이지에서 즉시 파악할 수 있어야 한다.**
 
+## Current Milestone: v1.1 분석 도구 강화
+
+**Goal:** 기간 필터링, 데이터 내보내기, KPI 스파크라인으로 대시보드 분석 활용도를 높인다.
+
+**Target features:**
+- 기간 선택기 (이번 주/지난 주/이번 달/지난 달 토글)
+- CSV/Excel 내보내기
+- KPI 카드 미니 스파크라인 차트
+
 ## Requirements
 
 ### Validated
@@ -33,9 +42,9 @@
 
 ### Active
 
-- [ ] 기간 선택기 (이번 주/지난 주/이번 달/지난 달 토글) — v2.0
-- [ ] CSV/Excel 내보내기 — v2.0
-- [ ] KPI 카드 미니 스파크라인 차트 — v2.0
+- [ ] 기간 선택기 (이번 주/지난 주/이번 달/지난 달 토글) — v1.1
+- [ ] CSV/Excel 내보내기 — v1.1
+- [ ] KPI 카드 미니 스파크라인 차트 — v1.1
 
 ### Out of Scope
 
@@ -74,4 +83,4 @@
 | 손익 → GPM 전환 (Phase 4) | 손익 절대값보다 GPM 비율이 팀 분석에 더 유용 | ✓ Good — 시트 파싱 구조도 단순화 |
 
 ---
-*Last updated: 2026-02-27 after v1.0 milestone*
+*Last updated: 2026-02-27 after v1.1 milestone started*
