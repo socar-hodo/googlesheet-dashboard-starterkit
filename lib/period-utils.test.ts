@@ -1,8 +1,6 @@
 // 기간 필터 유틸리티 — 단위 테스트 (TDD Red 단계)
 import { describe, it, expect } from 'vitest';
 import {
-  PeriodKey,
-  DateRange,
   DAILY_PERIODS,
   WEEKLY_PERIODS,
   PERIOD_LABELS,
