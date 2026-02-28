@@ -48,22 +48,39 @@
 - [x] **UX-03**: 대시보드 상단에 마지막 데이터 업데이트 타임스탬프를 표시한다
 - [x] **UX-04**: 기존 스타터킷 범용 컴포넌트(revenue-chart, category-chart, recent-orders-table)를 삭제하고 팀 전용 컴포넌트로 교체한다
 
+## v1.1 Requirements
+
+### 기간 선택기 (Period Filter)
+
+- [ ] **FILT-01**: 사용자가 이번 주/지난 주/이번 달/지난 달 중 하나를 선택할 수 있다
+- [ ] **FILT-02**: 기간 선택 시 KPI 카드, 차트, 테이블이 해당 기간 데이터로 즉시 업데이트된다
+- [ ] **FILT-03**: 선택된 기간이 URL searchParams에 유지되어 공유/북마크 가능하다
+
+### 내보내기 (Export)
+
+- [ ] **EXPO-01**: 사용자가 현재 보이는 데이터를 CSV 파일로 다운로드할 수 있다
+- [ ] **EXPO-02**: 사용자가 현재 보이는 데이터를 Excel(.xlsx) 파일로 다운로드할 수 있다
+- [ ] **EXPO-03**: 내보내기 파일명에 현재 탭(Daily/Weekly)과 날짜가 포함된다
+
+### 스파크라인 (Sparkline)
+
+- [ ] **SPRK-01**: KPI 카드 각각에 최근 데이터 추이를 보여주는 미니 차트가 표시된다
+- [ ] **SPRK-02**: 스파크라인이 다크/라이트 테마에 맞는 색상으로 렌더링된다
+
 ## v2 Requirements
 
-### Filters & Export
+### 기간 선택기 고도화
 
-- **FILT-01**: 기간 선택기 버튼 (이번 주/지난 주/이번 달/지난 달 토글)
-- **FILT-02**: 사용자 지정 날짜 범위 필터
+- **FILT-04**: 사용자 지정 날짜 범위 직접 입력 (달력 피커)
 
-### Export
+### 내보내기 고도화
 
-- **EXP-01**: 데이터 CSV/Excel 내보내기
-- **EXP-02**: 대시보드 인쇄 최적화 CSS
+- **EXPO-04**: 대시보드 인쇄 최적화 CSS
+- **EXPO-05**: 차트 이미지(PNG) 내보내기
 
-### Enhanced Charts
+### 차트 고도화
 
-- **ECHRT-01**: KPI 카드에 미니 스파크라인 차트
-- **ECHRT-02**: 이중 축 복합 차트 (Bar + Line 심화 구성)
+- **ECHRT-01**: 이중 축 복합 차트 (Bar + Line 심화 구성)
 
 ## Out of Scope
 
@@ -75,6 +92,8 @@
 | 알림/Push 기능 | 조회 전용 v1 범위 초과 |
 | 실시간 WebSocket | Google Sheets는 준실시간 수준이면 충분 |
 | 사용자별 레이아웃 커스터마이징 | 고정 레이아웃이 팀 전체 일관성 보장 |
+| 사용자 지정 날짜 범위 필터 | v1.1 범위 초과, 토글 4개로 충분 |
+| 차트 이미지(PNG) 내보내기 | 복잡도 높음, v1.1 범위 초과 |
 
 ## Traceability
 
@@ -106,11 +125,21 @@
 | UX-03 | Phase 4 | Complete |
 | UX-04 | Phase 5 | Complete |
 
+| FILT-01 | Phase 6 | Pending |
+| FILT-02 | Phase 6 | Pending |
+| FILT-03 | Phase 6 | Pending |
+| EXPO-01 | Phase 7 | Pending |
+| EXPO-02 | Phase 7 | Pending |
+| EXPO-03 | Phase 7 | Pending |
+| SPRK-01 | Phase 8 | Pending |
+| SPRK-02 | Phase 8 | Pending |
+
 **Coverage:**
-- v1 requirements: 24 total
-- Mapped to phases: 24
-- Unmapped: 0
+- v1 requirements: 24 total — all Complete ✓
+- v1.1 requirements: 8 total
+- Mapped to phases: 8
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-02-21*
-*Last updated: 2026-02-24 after Phase 4 Plan 04-01 completion (TABLE-01~03 완료)*
+*Last updated: 2026-03-01 after v1.1 milestone start*
