@@ -1,4 +1,6 @@
-// DataTable Server Component — Daily/Weekly 탭별 테이블 렌더링, 요약 행 포함
+'use client';
+
+// DataTable — Daily/Weekly 탭별 테이블 렌더링, 요약 행 포함
 import type { TeamDashboardData, DailyRecord, WeeklyRecord } from '@/types/dashboard';
 import {
   Table,

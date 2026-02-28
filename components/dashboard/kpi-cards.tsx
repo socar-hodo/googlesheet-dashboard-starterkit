@@ -1,3 +1,5 @@
+'use client';
+
 // KPI 카드 그리드 — TeamDashboardData에서 5개 KPI 카드 렌더링
 import { TrendingUp, DollarSign, Users, Activity, Clock } from 'lucide-react';
 import type { TeamDashboardData } from '@/types/dashboard';

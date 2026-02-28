@@ -1,5 +1,6 @@
+'use client';
+
 // components/dashboard/charts/charts-section.tsx
-// Server Component — "use client" 없음
 
 import type { TeamDashboardData, DailyRecord, WeeklyRecord } from '@/types/dashboard';
 import { RevenueTrendChart } from './revenue-trend-chart';
