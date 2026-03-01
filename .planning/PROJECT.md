@@ -8,6 +8,15 @@
 
 **오늘 매출이 목표 대비 어디에 있는지, 지난 주/지난 달 대비 어떻게 변하고 있는지를 한 페이지에서 즉시 파악할 수 있어야 한다.**
 
+## Current Milestone: v1.2 데이터 심화 분석
+
+**Goal:** 고객 유형(왕복/부름/편도) 분석, 매출 세분화(대여/PF/주행/부름/기타), 비용 카테고리별 드릴다운으로 데이터 인사이트를 강화한다.
+
+**Target features:**
+- 고객 유형별 이용건수 도넛·추이 차트
+- 매출 유형별 구성 차트 + 금액/비율
+- 비용 카테고리 합계 + 드릴다운 세부항목
+
 ## Requirements
 
 ### Validated
@@ -36,7 +45,9 @@
 
 ### Active
 
-(Next milestone requirements — TBD via `/gsd:new-milestone`)
+- [ ] 고객 유형 분석 (왕복/부름/편도 이용건수 도넛·추이) — v1.2
+- [ ] 매출 세분화 (대여/PF/주행/부름/기타 구성 차트) — v1.2
+- [ ] 비용 분석 카테고리 합계 + 드릴다운 — v1.2
 
 ### Out of Scope
 
@@ -84,4 +95,4 @@
 | vitest 선택 (단위 테스트) | ESM/TypeScript 네이티브, Next.js와 독립 실행 | ✓ Good — 별도 babel 설정 없이 순수 함수 TDD 가능 |
 
 ---
-*Last updated: 2026-03-01 after v1.1 milestone complete*
+*Last updated: 2026-03-01 after v1.2 milestone started*
