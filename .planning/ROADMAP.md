@@ -35,7 +35,7 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 ### v1.2 데이터 심화 분석 (Phase 9-12)
 
 - [x] **Phase 9: v1.2 Data Layer** (2/2 plans) - 고객 유형·매출 세분화·비용 분석용 TypeScript 타입 + Sheets 파싱 + 단위 테스트
-- [ ] **Phase 10: Customer Type Analysis** - 왕복/부름/편도 이용건수 도넛·추이 차트 + 기간 필터 연동
+- [x] **Phase 10: Customer Type Analysis** - 왕복/부름/편도 이용건수 도넛·추이 차트 + 기간 필터 연동 (completed 2026-03-01)
 - [ ] **Phase 11: Revenue Breakdown** - 매출 유형별 구성 차트 + 금액/비율 표시 + 기간 필터 연동
 - [ ] **Phase 12: Cost Analysis** - 비용 카테고리 합계 + 드릴다운 세부항목 + 기간 필터 연동
 
@@ -106,6 +106,6 @@ Plans:
 | 7. Export | v1.1 | 2/2 | Complete | 2026-03-01 |
 | 8. Sparkline | v1.1 | 2/2 | Complete | 2026-03-01 |
 | 9. v1.2 Data Layer | v1.2 | 2/2 | Complete | 2026-03-01 |
-| 10. Customer Type Analysis | v1.2 | 0/2 | In progress | - |
+| 10. Customer Type Analysis | 2/2 | Complete   | 2026-03-01 | - |
 | 11. Revenue Breakdown | v1.2 | 0/? | Not started | - |
 | 12. Cost Analysis | v1.2 | 0/? | Not started | - |
