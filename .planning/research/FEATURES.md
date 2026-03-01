@@ -1,222 +1,238 @@
 # Feature Research
 
-**Domain:** Korean B2B operations/sales dashboard (car-sharing/mobility team)
-**Researched:** 2026-02-21
-**Confidence:** MEDIUM (training data + codebase analysis; web search unavailable for verification)
+**Domain:** Korean B2B operations/sales dashboard — v1.1 Analysis Tools Enhancement
+**Researched:** 2026-02-27
+**Confidence:** HIGH (codebase direct inspection + web-verified patterns)
+
+> v1.0 research addressed the full dashboard foundation. This document focuses **exclusively** on the three new v1.1 features:
+> 1. 기간 선택기 (period filter: 이번 주 / 지난 주 / 이번 달 / 지난 달)
+> 2. CSV/Excel 내보내기 (export)
+> 3. KPI 스파크라인 미니 차트 (sparkline mini-charts on KPI cards)
+
+---
 
 ## Feature Landscape
 
 ### Table Stakes (Users Expect These)
 
-Features users assume exist. Missing these = product feels incomplete.
+These are behaviors users consider "obvious" for a dashboard with period filtering and export. Missing them makes the feature feel broken or incomplete.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| KPI summary cards (4-5 cards) | Every dashboard opens with headline numbers; team members need instant status check | LOW | Reuse existing `KpiCards` pattern. Replace generic KPIs with: 매출(revenue), 손익(P&L), 이용건수(usage count), 가동률(utilization rate). Each card shows current value + target achievement % |
-| Target achievement indicator on KPI cards | Korean business culture is deeply target-driven (목표 대비 실적). Showing raw numbers without target context is meaningless | LOW | Show as percentage badge or progress bar beneath the value. Color-code: green >= 100%, yellow 80-99%, red < 80% |
-| Daily/Weekly tab switching | PROJECT.md specifies two sheets (daily, weekly) on a single page. Users expect seamless toggle without page reload | LOW | shadcn/ui Tabs component (needs install). Server Component can fetch both datasets; client tab controls which renders |
-| Revenue trend line chart (매출 추이) | Time-series revenue is the most fundamental sales visualization. Already exists as pattern | LOW | Reuse `RevenueChart` pattern. Adapt for daily (date x-axis) or weekly (week-number x-axis). Must support dual-line: actual vs target |
-| P&L trend chart (손익 추이) | Team needs to see not just revenue but profit/loss trajectory. Korean ops teams track 손익 closely as it reveals operational efficiency | MEDIUM | Bar chart (positive=profit, negative=loss) or area chart. Recharts BarChart with positive/negative coloring. Separate from revenue chart for clarity |
-| Utilization rate visualization (가동률) | Core KPI for vehicle fleet/car-sharing operations. 가동률 is the heartbeat metric -- it tells whether assets are being used | MEDIUM | Gauge/progress-style display on KPI card + line chart for trend. Percentage metric (0-100%). Color thresholds matter: green > 80%, yellow 60-80%, red < 60% |
-| Period comparison (기간 비교) | PROJECT.md explicitly requires "이번 주 vs 지난 주, 이번 달 vs 지난 달". Korean sales reports always compare periods | MEDIUM | Show delta (change amount) and change rate (%) on KPI cards. E.g., "매출 ₩2,340만 (+12.3% vs 지난 주)". Requires computing comparison from sheet data |
-| Data table with all metrics | Users need to see the raw daily/weekly data rows, not just charts. Especially for 팀원 who need to verify specific dates | LOW | Reuse existing `Table` component pattern from `RecentOrdersTable`. Columns: 일자/주차, 매출, 손익, 이용시간, 이용건수, 가동률 |
-| Korean number formatting | Korean business context: 만원 (10K KRW) units for large amounts, Korean date formats (M월 D일 or YYYY-MM-DD), percentage with % suffix | LOW | Existing pattern: `₩${(amount / 10000).toLocaleString()}만`. Extend to 이용시간 (hours), 이용건수 (건), 가동률 (%) |
-| Dark/light theme support | Already exists in codebase. Users expect it to work with new components too | LOW | Use existing CSS variable system. Ensure all new chart colors reference `--chart-*` variables |
-| Responsive layout (mobile-friendly) | Team members check on phones during meetings or in the field. Existing layout is responsive | LOW | Existing grid system handles this. KPI cards stack on mobile (2-col or 1-col). Charts go full-width |
-| Loading state | Google Sheets API has latency (1-3s). Users need feedback that data is loading, not broken | LOW | Server Component streaming with React Suspense. Show skeleton cards/charts while data loads |
+| 기간 선택기: preset buttons persist in URL | Dashboards that lose filter state on back/refresh are perceived as broken. The existing tab already uses URL searchParams — period filter must follow the same pattern | LOW | Extend existing `tab` searchParam to also carry `period=this-week\|last-week\|this-month\|last-month`. Server Component reads it, filters data array before passing to components. Bookmarkable and shareable |
+| 기간 선택기: applies to KPI cards, charts, and data table simultaneously | A filter that only affects some widgets creates confusion — users check if the filter "worked" on every widget | MEDIUM | All three component groups (KpiCards, ChartsSection, DataTable) receive the same filtered subset. The filter is a data-slicing operation applied upstream in the Server Component before props are passed down |
+| 기간 선택기: currently active period is visually highlighted | Toggle buttons without a clear "active" state look like they do nothing after clicking | LOW | Use shadcn/ui `Tabs` or `Button` with variant toggling. Active button gets solid/filled style; inactive gets ghost/outline. Matches existing TabNav pattern |
+| 기간 선택기: Daily tab shows week/day presets, Weekly tab shows week/month presets | Showing "이번 달" for Daily makes sense; showing "지난 주" for Weekly tab also makes sense. Mismatch (e.g., showing single-day presets on Weekly tab) confuses users | MEDIUM | Period presets are tab-aware. Daily tab: 이번 주, 지난 주, 이번 달, 지난 달. Weekly tab: 이번 달, 지난 달, 전체 (all weeks in data). Implement with conditional rendering in the period selector component |
+| CSV 내보내기: file downloads immediately on button click | Server-round-trip export is unexpected. Users expect the button to trigger an immediate browser download, especially for small datasets | LOW | Client-side Blob generation: `data:text/csv` or `new Blob([content], { type: 'text/csv' })` + anchor click. No server API route needed for this dataset size |
+| CSV 내보내기: filename includes period and tab context | A downloaded file called `data.csv` is confusing. Users need context in the filename for file management | LOW | Generate filename dynamically: `경남울산_일별_이번주_20260227.csv`. Include: team abbreviation, tab (일별/주차별), period label, download date |
+| CSV 내보내기: Korean characters render correctly in Excel | The #1 CSV export failure mode: opening a Korean CSV in Excel shows garbled text (mojibake) because Excel defaults to system encoding, not UTF-8 | LOW | Prepend UTF-8 BOM (`\uFEFF`) to CSV content. This is the standard fix for Korean + Excel compatibility. Without it, Korean column headers and values will display as garbage characters |
+| KPI 스파크라인: trend direction is immediately readable | A sparkline with no discernible direction communicates nothing. Users should see "going up" or "going down" without thinking | LOW | Use a simple line sparkline (not bar) — line direction is intuitively read as trend. Stroke color matches the KPI card's delta color (green=positive trend, red=negative trend) |
+| KPI 스파크라인: does not break the KPI card layout | Sparklines that push card height inconsistently or cause text to shift make the grid feel unstable | LOW | Fixed pixel height (40-48px). `ResponsiveContainer` with explicit height. No tooltip, no axes, no labels. Pure visual element that fits within the existing KpiCard component's `CardContent` |
 
-### Differentiators (Competitive Advantage)
+### Differentiators (Valuable but Not Expected)
 
-Features that set the product apart from a basic Google Sheets view. Not required, but make this dashboard worth using over just opening the spreadsheet.
+These elevate the feature beyond baseline expectations.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| Target achievement progress bar (목표 달성률 게이지) | Visual progress toward monthly target at a glance. The sheet has 매월 목표 data -- surfacing it as a visual progress indicator makes the dashboard dramatically more useful than the raw sheet | LOW | Horizontal progress bar or circular gauge on KPI card. `current / target * 100`. Most impactful differentiator for lowest effort |
-| Conditional color coding throughout | Korean ops dashboards use red/yellow/green extensively. Cells, cards, chart segments that change color based on performance thresholds make patterns jump out | LOW | Apply to: KPI cards (achievement %), table cells (P&L positive=blue/negative=red), chart data points. Already have CSS variable system for theming |
-| Sparkline mini-charts on KPI cards | Small inline trend indicators (last 7 days or last 4 weeks) directly on each KPI card, so users see direction without scrolling to full charts | MEDIUM | Recharts has `<LineChart>` that can render tiny. Requires passing recent subset of data to each card. Adds significant information density |
-| Dual-axis or overlay chart (실적 vs 목표) | Overlay target line on top of actual performance bar/line chart. Korean sales teams live by 목표 대비 실적 -- seeing both on one chart is the canonical view | MEDIUM | Recharts ComposedChart: BarChart (actual) + Line (target) on same axes. Requires aligning daily target from monthly target (daily target = monthly target / business days) |
-| Month-to-date (MTD) cumulative view | Show cumulative daily revenue vs cumulative daily target. Answers "are we on track this month?" -- the question every team lead asks every day | MEDIUM | Compute running sum of daily values. Overlay with linearly interpolated monthly target. Area chart works well. This is the single most useful derived view for sales teams |
-| Week-over-week / Month-over-month delta badges | "+12.3% vs 지난 주" badges on each KPI card. Quick comparison without needing to mentally calculate | LOW | Compute from sheet data: (current period - previous period) / previous period * 100. Show with up/down arrow icons (lucide-react TrendingUp/TrendingDown) |
-| Summary row in data table | Totals/averages row at bottom of daily/weekly table. 합계 매출, 평균 가동률, etc. | LOW | Compute from data array. Render as bold/highlighted row. Standard in Korean business tables |
-| Print-friendly / screenshot-ready layout | Korean teams share dashboard screenshots in KakaoTalk/Teams. Clean layout that screenshots well is valued | LOW | Mainly CSS: ensure charts render with white background for screenshots, proper spacing. No interactive-only elements for key data |
+| 기간 선택기: "전체" (all data) as default | Most period selectors default to "this week," which immediately limits the view. Defaulting to all data preserves the existing behavior users are used to, and "all data" is the best starting context for understanding trends. Period filter then narrows | LOW | When no `period` searchParam is set, all records pass through unfiltered. This is the zero-cost default — no param means no filter |
+| 기간 선택기: empty state message when period yields no data | If "지난 주" filter finds zero matching records (e.g., data not yet entered), a blank dashboard without explanation creates panic ("is the system broken?") | LOW | Detect empty filtered array, render a contextual message: "이번 기간에 데이터가 없습니다 (기간: 지난 주)". Reuse existing empty state pattern in KpiCards |
+| CSV 내보내기: includes computed columns (GPM %) | The raw sheet data has revenue and profit separately; GPM % is computed. Exporting only raw columns forces users to recalculate GPM themselves in Excel — defeating the purpose | MEDIUM | Add GPM % as a computed column in the export: `(profit / revenue * 100).toFixed(1)`. Also include the formatted columns (revenue in 만원 units alongside raw values) if the audience is humans not machines |
+| CSV 내보내기: respects current period filter | Exporting "all data" when the user is viewing "이번 달" is disorienting. Export should match what is on screen | LOW | Pass the current filtered data (already sliced by period filter) to the export function, not the raw full dataset. Zero extra logic — the filtered array is already available |
+| KPI 스파크라인: uses last N data points (not full history) | A sparkline over all available months of data flattens recent variation into invisibility. For a team checking weekly/daily performance, the last 7 days or last 8 weeks is the meaningful window | LOW | Slice the last 7 records for Daily tab sparklines; last 8 records for Weekly tab sparklines. This window size is appropriate for the data volumes this team generates |
+| KPI 스파크라인: area fill below the line | Area sparklines (line + shaded area below) communicate both trend direction and magnitude more clearly than a bare line. Standard pattern in production dashboard tools (Stripe, Linear, Vercel analytics) | LOW | Recharts `AreaChart` with `Area` component using low-opacity fill. `fillOpacity={0.15}` keeps it subtle. No additional libraries required — Recharts is already installed |
+| Excel (.xlsx) 내보내기 option | CSV opens as plain text in some environments; `.xlsx` opens natively in Excel with proper column widths and formatting. Business users strongly prefer `.xlsx` | HIGH | Requires `xlsx` library (~500KB minified, ~150KB gzipped). Given this is a team internal tool and bundle size is not a primary constraint, xlsx is acceptable. However, the bundle cost is real — assess whether CSV is sufficient first |
 
 ### Anti-Features (Commonly Requested, Often Problematic)
 
-Features that seem good but create problems in this context.
-
 | Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|-----------------|-------------|
-| Real-time auto-refresh (polling/WebSocket) | "I want live data!" | Google Sheets API has rate limits (60 req/min per project). Polling 10+ users = quota burn. Sheet data updates at most a few times per day anyway. Adds complexity (client state management, stale data reconciliation) with near-zero value | Manual refresh on page load (current pattern). Add a visible "마지막 업데이트" timestamp so users know data freshness. Optionally add a manual refresh button |
-| Data editing from dashboard | "Can I update numbers here?" | PROJECT.md explicitly scopes as read-only. Adding write would require: Sheets API write permissions, conflict handling, input validation, audit trail. Massive scope increase for a feature that Google Sheets already does well | Link to the source Google Sheet for editing. Show "시트에서 편집" button that opens Sheets in new tab |
-| Complex date range picker | "I want to see March 5 to March 17 specifically" | Data comes from fixed daily/weekly sheet rows, not a queryable database. Arbitrary date ranges require client-side filtering logic, edge cases (partial weeks), and the UI complexity of a date picker for marginal value. Most users care about "today", "this week", "this month" -- not arbitrary ranges | Pre-defined period buttons: "이번 주", "지난 주", "이번 달", "지난 달". Covers 95% of use cases with zero UI complexity |
-| Multi-team / multi-region support | "Other teams want this too" | PROJECT.md explicitly scopes to 경남울산사업팀 only. Multi-tenancy adds: data isolation, team selector UI, permission model, separate sheet configs. Premature generalization | Build for one team well. If other teams want it, clone and configure -- don't over-engineer multi-tenancy now |
-| Export to Excel/PDF | "I want to download reports" | The data already lives in Google Sheets. Exporting from dashboard back to spreadsheet is circular. PDF generation requires server-side rendering libraries (puppeteer or similar), adding significant dependency weight | Link directly to source Google Sheet. For presentations, screenshot the dashboard (hence print-friendly layout differentiator) |
-| Drill-down detail pages | "I want to click a day and see hourly breakdown" | Sheet data is daily/weekly granularity. There is no hourly data to drill into. Building empty drill-down pages creates false expectations | Keep flat: one page, two tabs (daily/weekly). If finer granularity is needed later, add it to the sheet first, then the dashboard |
-| User-configurable dashboard (drag-and-drop widgets) | "Let me customize my layout" | Massive complexity (layout persistence, widget registry, drag-and-drop library). For a team of ~10-20 people all looking at the same 5 KPIs, customization adds cognitive overhead without value | Fixed, opinionated layout that shows the right data in the right order. Every team member sees the same view -- this is a feature, not a limitation |
-| Notification/alert system | "Alert me when 가동률 drops below 70%" | Requires: background job runner, notification delivery (email/push/KakaoTalk), threshold configuration UI, subscription management. Out of scope per PROJECT.md and disproportionate complexity | Color-code thresholds visually on the dashboard itself. Users check the dashboard and see red/yellow indicators immediately |
+| 기간 선택기: custom date range picker (날짜 직접 입력) | "I want to see Feb 10 to Feb 20 specifically" | PROJECT.md explicitly lists "사용자 지정 날짜 범위 필터" as Out of Scope. Beyond scope, a date range picker adds: calendar UI component, date parsing/validation, edge cases (cross-month ranges, partial weeks), and significantly higher complexity. The team primarily cares about standard reporting periods | Four preset buttons: 이번 주, 지난 주, 이번 달, 지난 달. Covers 95%+ of real queries. The data table already shows all rows for drill-down |
+| CSV 내보내기: server-side API route for export | "Generate the CSV on the server for security" | This dashboard is read-only with data from Google Sheets. There is no sensitive data requiring server-side generation. Client-side Blob export is instant, requires no API route, and has zero server cost | Client-side Blob + anchor download. Data is already fetched and available in component props |
+| CSV 내보내기: PDF report generation | "I want a formatted PDF report to send management" | PDF generation requires server-side rendering (puppeteer, react-pdf, or similar). Adds ~50MB+ of dependency, requires a server process, and the output quality for dashboards is poor compared to a browser screenshot | For report sharing: the dashboard is already clean enough to screenshot. Alternatively, direct link to the Google Sheet (source of truth) |
+| KPI 스파크라인: interactive sparklines (hover tooltip, click to expand) | "I want to see the exact value when I hover" | Sparklines are intentionally non-interactive — they are "at a glance" trend indicators. Adding hover interaction makes them mini-charts, which conflicts with the full-sized charts already on the page. Two interactive chart surfaces for the same data create UX confusion | Sparklines are visual only — no tooltip, no hover, no click. The full charts below the KPI cards provide interactive detail |
+| KPI 스파크라인: sparklines on every possible metric variant | "Show me sparklines for achievement rate, MTD totals, comparisons..." | Each additional sparkline data series requires its own computation and rendering. The KPI card layout has limited vertical space. More sparklines = smaller, less readable sparklines | One sparkline per KPI card showing the raw metric value trend (revenue, GPM, usage count, utilization rate, usage hours). Keep it to the five existing KPI metrics |
+| 기간 선택기: applying filter via new server fetch (API call on each selection) | "Filter on the server for freshness" | The existing data load pattern fetches all data once on page load. Triggering a new server fetch for each period selection would: add latency to each click, cause full-page Suspense boundary triggers, lose the snappy feel of client-side filtering. The data volume (a few hundred daily rows at most) is trivially filterable client-side | Client-side filter: data is already loaded, period selection just slices the array. URL searchParam update + router.replace (existing pattern). Zero additional network calls |
+
+---
 
 ## Feature Dependencies
 
 ```
-[Google Sheets data parsing (daily + weekly)]
+[Existing: TeamDashboardData (daily[], weekly[])]
     |
-    +---> [KPI summary cards] --requires--> [target data parsing from sheet]
+    +---> [기간 선택기 — PeriodFilter component]
     |         |
-    |         +--enhances--> [target achievement progress bar]
-    |         +--enhances--> [period comparison delta badges]
-    |         +--enhances--> [sparkline mini-charts]
+    |         +--produces--> [filtered DailyRecord[] or WeeklyRecord[]]
+    |         |                   |
+    |         |                   +--feeds--> [KpiCards (filtered)]
+    |         |                   +--feeds--> [ChartsSection (filtered)]
+    |         |                   +--feeds--> [DataTable (filtered)]
+    |         |
+    |         +--requires--> [URL searchParams pattern (already exists via TabNav)]
+    |         +--requires--> [date parsing logic (new: parse DailyRecord.date strings)]
     |
-    +---> [Revenue trend chart]
-    |         +--enhances--> [dual-axis actual vs target overlay]
-    |         +--enhances--> [MTD cumulative view]
+    +---> [CSV 내보내기 — ExportButton component]
+    |         |
+    |         +--requires--> [filtered data (기간 선택기 output, or full data if no filter)]
+    |         +--requires--> [UTF-8 BOM for Korean Excel compat]
+    |         +--produces--> [browser file download, no server round-trip]
     |
-    +---> [P&L trend chart]
-    |
-    +---> [Utilization rate chart]
-    |
-    +---> [Data table] --enhances--> [summary row]
-    |
-    +---> [Conditional color coding] (cross-cutting, applies to all above)
-
-[Daily/Weekly tab switching]
-    +--controls--> [which dataset renders in all components above]
-
-[Loading state (Suspense)]
-    +--wraps--> [all data-dependent components]
+    +---> [KPI 스파크라인 — SparklineChart component]
+              |
+              +--requires--> [series data: last N records per KPI metric]
+              +--requires--> [Recharts AreaChart/LineChart (already installed)]
+              +--embeds--> [inside KpiCard component (existing)]
+              +--NOT requires--> [기간 선택기] (sparklines use last N records from full data,
+                                               not the period-filtered subset — design decision)
 ```
 
 ### Dependency Notes
 
-- **All visualizations require sheet data parsing:** The daily and weekly sheet parsers are the foundation. Nothing renders without them. This must be Phase 1.
-- **KPI cards require target data:** The daily sheet includes 매월 목표 (monthly target). Parsing this correctly is prerequisite for achievement % display. Target data is in the same sheet, so parsing both together is natural.
-- **Period comparison requires historical data access:** Comparing "이번 주 vs 지난 주" means the sheet must contain both current and previous period data. The daily sheet likely has the full month; weekly sheet likely has multiple weeks. Parser must handle extracting and grouping by period.
-- **Tab switching is independent of data:** Can be implemented as pure client-side UI that toggles between pre-fetched daily and weekly data. Both datasets fetched in parallel on page load.
-- **Conditional color coding is cross-cutting:** Apply it incrementally as each component is built, not as a separate phase.
-- **MTD cumulative view enhances revenue chart:** It is a derived computation (running sum) applied to daily data, displayed as an additional chart or chart mode toggle.
+- **기간 선택기 requires date string parsing:** `DailyRecord.date` is stored as a raw sheet string (e.g., "2026-02-21" or potentially "2026/02/21" or "2026년 2월 21일"). The filter logic must handle whatever format the sheet uses. This is a potential pitfall — verify actual format from mock data or live sheet before implementing.
 
-## MVP Definition
+- **기간 선택기 is a prerequisite for meaningful CSV export:** Without period filter, export always dumps all data. With period filter in place, export naturally follows the filtered view. Implement period filter first, then export.
 
-### Launch With (v1)
+- **스파크라인 does NOT depend on 기간 선택기:** Sparklines show the historical trend of the last N data points from the complete dataset. They answer "what has been the direction?" not "what happened in this specific period?" Using period-filtered data for sparklines would break their purpose (e.g., "이번 주" filter with only 5 data points would make a meaningless sparkline).
 
-Minimum viable product -- what replaces the current starter-kit dashboard with real team value.
+- **스파크라인 requires KpiCard interface extension:** The existing `KpiCardProps` has no `sparklineData` prop. KpiCard needs to accept an optional `sparklineData: number[]` prop and conditionally render the sparkline component. This is a backwards-compatible extension.
 
-- [ ] **Daily/Weekly sheet data parsing** -- Foundation for everything. Parse both sheets into typed structures. Include target extraction from daily sheet
-- [ ] **New type definitions** -- Replace `KpiData`, `MonthlyRevenue`, etc. with `TeamDailyData`, `TeamWeeklyData`, `TeamKpiSummary` reflecting actual sheet columns (매출, 손익, 이용시간, 이용건수, 가동률, 목표)
-- [ ] **KPI summary cards with target achievement** -- 4-5 cards: 매출 (with 목표 대비 %), 손익, 이용건수, 가동률. Color-coded achievement badges
-- [ ] **Daily/Weekly tab switching** -- Single page, two tabs. Install shadcn/ui Tabs component
-- [ ] **Revenue trend line chart** -- Daily or weekly 매출 over time. Dual-line: actual + target
-- [ ] **P&L trend chart** -- Bar or area chart showing 손익 trajectory with positive/negative coloring
-- [ ] **Utilization rate chart** -- 가동률 trend line with threshold coloring
-- [ ] **Data table** -- Full daily/weekly data in sortable table format
-- [ ] **Period comparison on KPI cards** -- Delta badges showing vs previous period
-- [ ] **Korean formatting** -- 만원 units, Korean date format, percentage formatting
-- [ ] **Loading skeleton** -- Suspense boundaries with skeleton cards/charts
+- **CSV export accesses already-rendered data:** The export button can access filtered data via component props or a shared state/context. No new data fetch required. The simplest implementation: pass filtered array into the ExportButton as a prop.
 
-### Add After Validation (v1.x)
+---
 
-Features to add once core is working and team is using the dashboard.
+## MVP Definition for v1.1
 
-- [ ] **Target achievement progress bar** -- Visual gauge for monthly target progress. Add when team confirms target data structure is stable
-- [ ] **MTD cumulative revenue view** -- Running total chart. Add when team asks "are we on pace this month?"
-- [ ] **Sparkline mini-charts on KPI cards** -- Add when team wants more information density without scrolling
-- [ ] **Summary row in data table** -- Totals and averages. Add alongside or shortly after data table
-- [ ] **Manual refresh button** -- "새로고침" button with last-updated timestamp. Add if team complains about data staleness
-- [ ] **Print/screenshot-optimized CSS** -- Add when team starts sharing screenshots in chat
+### Build Now (v1.1 launch)
 
-### Future Consideration (v2+)
+The three v1.1 target features, all required for the milestone.
 
-Features to defer until product-market fit is established.
+- [ ] **기간 선택기 — preset buttons** — 이번 주, 지난 주, 이번 달, 지난 달, (전체). Stored in URL searchParam `period`. Applied client-side by slicing the data array in the page Server Component or a shared filtering utility. Affects KpiCards, ChartsSection, DataTable simultaneously
+- [ ] **CSV 내보내기 — client-side download** — Button in the dashboard header or table section. Exports the currently filtered dataset. UTF-8 BOM prepended. Computed GPM % column included. Filename includes context (tab + period + date)
+- [ ] **KPI 스파크라인 — area mini-charts** — One per KPI card, showing last 7 records (Daily) or last 8 records (Weekly) of that card's metric. AreaChart with Area component, no axes, no tooltip, no labels. Height: 44px fixed. Color matches card's delta direction
 
-- [ ] **Dual-axis composed chart (bars + target line)** -- More complex Recharts composition. Defer until basic charts are validated
-- [ ] **Period selector buttons** -- "이번 주 / 지난 주 / 이번 달 / 지난 달" quick filters. Defer until team expresses need beyond the default current-period view
-- [ ] **Conditional formatting on data table cells** -- Color-code individual cells in the table. Nice polish but not essential for launch
-- [ ] **이용시간 (usage hours) dedicated chart** -- Additional chart view. Only if team specifically asks; 매출/손익/가동률 are the primary KPIs
+### Defer to v1.2+
+
+- [ ] **Excel (.xlsx) export** — Only if team explicitly requests native Excel format. CSV is sufficient for the immediate need and has zero bundle cost. xlsx adds ~150KB gzipped
+- [ ] **기간 선택기: Weekly-specific presets** — "이번 달", "지난 달" for weekly tab currently works by filtering on week strings/numbers, which requires knowing the week-to-month mapping. This is an edge case — implement "전체/이번 달/지난 달" for weekly tab only after daily filter is validated
+- [ ] **Export button: multiple formats menu** — CSV + Excel + (future) PDF as a dropdown. Premature until users confirm what they actually need
+
+---
 
 ## Feature Prioritization Matrix
 
 | Feature | User Value | Implementation Cost | Priority |
 |---------|------------|---------------------|----------|
-| Sheet data parsing (daily + weekly) | HIGH | MEDIUM | P1 |
-| New type definitions | HIGH | LOW | P1 |
-| KPI summary cards with target % | HIGH | LOW | P1 |
-| Daily/Weekly tab switching | HIGH | LOW | P1 |
-| Revenue trend chart (actual vs target) | HIGH | MEDIUM | P1 |
-| P&L trend chart | HIGH | MEDIUM | P1 |
-| Utilization rate chart | HIGH | LOW | P1 |
-| Data table | MEDIUM | LOW | P1 |
-| Period comparison deltas on KPI | HIGH | MEDIUM | P1 |
-| Korean number/date formatting | HIGH | LOW | P1 |
-| Loading skeleton (Suspense) | MEDIUM | LOW | P1 |
-| Target achievement progress bar | HIGH | LOW | P2 |
-| Conditional color coding (cards) | MEDIUM | LOW | P2 |
-| Summary row in table | MEDIUM | LOW | P2 |
-| MTD cumulative view | HIGH | MEDIUM | P2 |
-| Sparkline mini-charts | MEDIUM | MEDIUM | P2 |
-| Dual-axis composed chart | MEDIUM | MEDIUM | P3 |
-| Period selector buttons | MEDIUM | MEDIUM | P3 |
-| Print-optimized CSS | LOW | LOW | P3 |
-| Manual refresh + timestamp | LOW | LOW | P3 |
+| 기간 선택기 (preset buttons + URL param) | HIGH — directly answers "how are we doing this week vs last week?" | LOW — client-side array slice, extends existing URL param pattern | P1 |
+| CSV 내보내기 (UTF-8 BOM, with GPM column) | MEDIUM — data already in Google Sheets, but export is convenient for reporting | LOW — Blob download, no new library needed for CSV | P1 |
+| KPI 스파크라인 (AreaChart mini, last N records) | HIGH — significantly increases information density of KPI cards without scrolling | LOW — Recharts already installed, component is self-contained | P1 |
+| 기간 선택기: Weekly tab preset variants | MEDIUM — weekly tab has different periodicity concept | MEDIUM — week string format parsing adds ambiguity | P2 |
+| Excel (.xlsx) 내보내기 | LOW-MEDIUM — CSV usually sufficient, xlsx is nicer | MEDIUM — adds xlsx dependency (~150KB gzipped) | P3 |
+| Sparkline interactive tooltip | LOW — sparklines are intentionally non-interactive | MEDIUM — Recharts tooltip needs absolute positioning in small space | P3 |
 
 **Priority key:**
-- P1: Must have for launch -- the dashboard is not useful without these
-- P2: Should have, add shortly after launch -- these make the dashboard significantly better
-- P3: Nice to have, future consideration -- polish and advanced features
+- P1: Build for v1.1 launch — these are the milestone targets
+- P2: Evaluate after v1.1 validation
+- P3: Nice to have, future consideration
 
-## Competitor/Reference Feature Analysis
+---
 
-Note: Based on training data knowledge of Korean B2B dashboard products. Confidence: MEDIUM.
+## Implementation Patterns (for Roadmap Reference)
 
-| Feature | Korean BI Tools (Tableau/Power BI Korea usage) | Custom Internal Dashboards (Korean enterprise) | Google Sheets (current workflow) | Our Approach |
-|---------|-----------------------------------------------|-----------------------------------------------|--------------------------------|--------------|
-| KPI cards | Standard top-row cards with comparison | Common pattern, usually 4-6 cards | Manual cell formatting | 4-5 cards with achievement %, delta badges. Simple and focused |
-| Target vs Actual | Built-in goal lines, bullet charts | Dual-line or bar+line composed charts | Conditional formatting cells | Dual-line chart: actual solid line + target dashed line |
-| Period comparison | Filter-driven comparison mode | Usually hardcoded current vs previous | Manual side-by-side columns | Computed deltas on KPI cards + potential toggle for chart overlay |
-| 가동률 (utilization) | Gauge widgets | Custom gauge or progress bars | Plain percentage cell | KPI card with progress bar + trend line chart |
-| Data granularity | Drill-down to any level | Fixed to available data | Row-level in sheet | Fixed daily/weekly tabs matching sheet granularity |
-| Interactivity | Full filtering, cross-filtering | Limited, mostly view-only | Full cell editing | Minimal: tab switch only. Dashboard is for viewing, sheet is for editing |
-| Mobile access | Responsive or dedicated mobile app | Often desktop-only | Google Sheets app | Fully responsive via existing Tailwind grid system |
-| Update frequency | Real-time or scheduled refresh | Varies (API polling, manual) | Manual entry | Page-load fetch. Matches data entry frequency |
+### 기간 선택기 — How It Should Work
 
-## Korean Business Dashboard UX Conventions
+```
+User clicks "이번 주" button
+    → PeriodFilter Client Component calls router.replace with ?tab=daily&period=this-week
+    → Next.js Server Component re-renders (force-dynamic is already set)
+    → getTeamDashboardData() fetches full dataset (unchanged)
+    → filterByPeriod(data.daily, 'this-week') returns only records within this week
+    → Filtered array passed to KpiCards, ChartsSection, DataTable
+    → All widgets show only this week's data
+    → URL is bookmarkable: /dashboard?tab=daily&period=this-week
+```
 
-These conventions are specific to the Korean B2B context and should inform design decisions. Confidence: MEDIUM (based on training data patterns, not verified with live sources).
+**Date comparison approach:** Parse `DailyRecord.date` string to Date object; compare against computed week/month boundaries for today's date (`new Date()`). Week boundaries: Monday 00:00 to Sunday 23:59 (Korean business week convention). Month boundaries: first of month to last of month.
 
-### Number Display Conventions
-- Large amounts in 만원 (10,000 KRW) units: `₩2,340만` not `₩23,400,000`
-- Negative amounts in red with minus sign: `-₩120만`
-- Percentages with one decimal: `87.3%` not `87%`
-- Growth/change with explicit sign: `+12.3%` or `-5.1%`
-- Usage counts with 건 suffix: `1,234건`
-- Hours with 시간 suffix: `456시간`
+**Critical unknown:** The actual date string format in the Google Sheet. Mock data uses "2026-02-21" (ISO), but the actual sheet may use "2026/02/21", "2월 21일", or Excel serial numbers. The `parseDailySheet` function stores the raw string from `DAILY_HEADERS.date`. **Must verify before implementing the date filter.**
 
-### Color Conventions
-- Achievement >= 100%: Blue or Green (success)
-- Achievement 80-99%: Yellow/Orange (caution)
-- Achievement < 80%: Red (warning)
-- Profit (positive P&L): Blue
-- Loss (negative P&L): Red
-- These map to Korean financial reporting conventions
+### CSV 내보내기 — Implementation Sketch
 
-### Layout Conventions
-- KPI cards at top (overview first)
-- Charts in middle (trends and patterns)
-- Detail table at bottom (drill into specifics)
-- This top-down flow matches how Korean managers scan reports: summary -> trend -> detail
+```typescript
+// No library needed for CSV. Pure string manipulation.
+function exportToCSV(records: DailyRecord[], period: string) {
+  const BOM = '\uFEFF'; // UTF-8 BOM — required for Korean in Excel
+  const headers = ['날짜', '매출', 'GPM(%)', '이용시간', '이용건수', '가동률(%)'];
+  const rows = records.map(r => [
+    r.date,
+    r.revenue,
+    r.revenue > 0 ? ((r.profit / r.revenue) * 100).toFixed(1) : '0.0',
+    r.usageHours,
+    r.usageCount,
+    r.utilizationRate.toFixed(1),
+  ]);
+  const csv = BOM + [headers, ...rows].map(row => row.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `경남울산_일별_${period}_${today}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+```
 
-### Tab/Navigation Conventions
-- "일별" (Daily) and "주별" (Weekly) are the standard Korean labels for period tabs
-- Current period shown by default; toggle to see historical
-- Period labels use Korean format: "2월 3주차" (February Week 3), "2/21(금)" (2/21 Fri)
+This requires no npm packages. File size for a year of daily records: ~15KB. Trivially fast.
+
+### KPI 스파크라인 — Recharts Pattern
+
+```tsx
+// Minimal AreaChart sparkline using existing Recharts installation
+import { AreaChart, Area, ResponsiveContainer } from 'recharts';
+
+function SparklineChart({ data, color }: { data: number[], color: string }) {
+  const chartData = data.map(v => ({ v }));
+  return (
+    <ResponsiveContainer width="100%" height={44}>
+      <AreaChart data={chartData} margin={{ top: 2, right: 0, bottom: 2, left: 0 }}>
+        <Area type="monotone" dataKey="v" stroke={color} strokeWidth={1.5}
+              fill={color} fillOpacity={0.12} dot={false} />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+}
+```
+
+No new dependencies. No axes, no labels, no tooltip. The `color` prop is driven by the existing `getDeltaColorClass` logic — positive delta = green stroke, negative = red stroke. The sparkline data is sliced from the full (unfiltered) dataset: `data.daily.slice(-7).map(r => r.revenue)` for the revenue KPI card.
+
+---
+
+## Architecture Impact on Existing Components
+
+| Existing Component | v1.1 Change | Effort |
+|-------------------|-------------|--------|
+| `app/(dashboard)/dashboard/page.tsx` | Add period filter reading from searchParams; apply filterByPeriod() before passing to child components | LOW |
+| `components/dashboard/tab-nav.tsx` | Extend or companion component: PeriodFilter with the same URL param pattern | LOW |
+| `components/dashboard/kpi-card.tsx` | Add optional `sparklineData?: number[]` prop; render SparklineChart conditionally | LOW |
+| `components/dashboard/kpi-cards.tsx` | Pass last-N data slices as sparklineData to each KpiCard | LOW |
+| `components/dashboard/data-table.tsx` | Receives already-filtered records — no change needed to DataTable itself | NONE |
+| `components/dashboard/charts/charts-section.tsx` | Receives already-filtered data — no change needed | NONE |
+| New: `components/dashboard/period-filter.tsx` | Client Component, same pattern as TabNav | NEW |
+| New: `components/dashboard/export-button.tsx` | Client Component with Blob download logic | NEW |
+| New: `components/dashboard/sparkline-chart.tsx` | Pure presentational, wraps Recharts AreaChart | NEW |
+| New: `lib/period-utils.ts` | filterByPeriod(), getWeekBounds(), getMonthBounds() utilities | NEW |
+
+---
 
 ## Sources
 
-- Codebase analysis: `types/dashboard.ts`, `lib/data.ts`, `components/dashboard/*.tsx` (HIGH confidence -- direct code inspection)
-- Project requirements: `.planning/PROJECT.md` (HIGH confidence -- project owner validated)
-- Existing architecture: `.planning/codebase/ARCHITECTURE.md` (HIGH confidence -- codebase scan)
-- Korean B2B dashboard patterns: Training data (MEDIUM confidence -- common patterns in Korean enterprise software, but not verified with live sources in this session)
-- Recharts capabilities: Training data knowledge of Recharts API (MEDIUM confidence -- LineChart, BarChart, ComposedChart, AreaChart, PieChart are well-established, but specific v3 features not verified)
-- Car-sharing/mobility KPIs: Training data (MEDIUM confidence -- 가동률/이용건수/이용시간 are standard fleet operations metrics)
+- Codebase direct inspection: `components/dashboard/tab-nav.tsx`, `components/dashboard/kpi-card.tsx`, `components/dashboard/kpi-cards.tsx`, `app/(dashboard)/dashboard/page.tsx`, `types/dashboard.ts`, `lib/data.ts` (HIGH confidence — direct code read)
+- Project requirements: `.planning/PROJECT.md` (HIGH confidence — project owner validated)
+- Web research: Dashboard period filter UX best practices — lollypop.design/blog/2025/july/filter-ux-design/, aurorascharff.no/posts/managing-advanced-search-param-filtering-next-app-router/ (MEDIUM confidence)
+- Web research: CSV export Korean Excel compatibility — dev.to/jasurkurbanov/how-to-export-data-to-excel-from-api-using-react-incl-custom-headers-5ded, dhiwise.com/post/react-csv-best-practices (HIGH confidence — BOM requirement is well-documented)
+- Web research: Recharts sparkline patterns — recharts.github.io/en-US/api/LineChart/, chakra-ui.com/docs/charts/sparkline, tremor.so/docs/visualizations/spark-chart (HIGH confidence — Recharts is already installed and in use)
+- Web research: xlsx bundle size — github.com/SheetJS/sheetjs/issues/694, npmtrends.com comparison (MEDIUM confidence — exact current bundle size not verified)
 
 ---
-*Feature research for: Korean B2B operations/sales dashboard (car-sharing/mobility team)*
-*Researched: 2026-02-21*
+*Feature research for: v1.1 Analysis Tools (기간 선택기, CSV 내보내기, KPI 스파크라인)*
+*Researched: 2026-02-27*

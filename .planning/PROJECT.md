@@ -2,18 +2,17 @@
 
 ## What This Is
 
-경남울산사업팀의 Google Sheets 데이터(Daily/Weekly 시트)를 실시간으로 읽어 매출 현황과 이용 분석을 한눈에 보여주는 웹 대시보드. 팀원 전체가 일별·주차별 매출, GPM, 이용시간, 이용건수, 가동률을 목표 대비 실적, 기간 비교, 추이 스파크라인으로 확인하고 CSV/Excel로 내보낼 수 있다.
+경남울산사업팀의 Google Sheets 데이터(Daily/Weekly 시트)를 실시간으로 읽어 매출 현황과 이용 분석을 한눈에 보여주는 웹 대시보드. 팀원 전체가 일별·주차별 매출, GPM, 이용시간, 이용건수, 가동률을 목표 대비 실적, 기간 비교, 추이 스파크라인으로 확인하고 CSV/Excel로 내보낼 수 있다. v1.2부터 고객 유형(왕복/부름/편도) 이용건수 도넛 차트와 추이 차트가 추가되어 유형별 분포를 기간 필터로 즉시 확인 가능하다.
 
 ## Core Value
 
 **오늘 매출이 목표 대비 어디에 있는지, 지난 주/지난 달 대비 어떻게 변하고 있는지를 한 페이지에서 즉시 파악할 수 있어야 한다.**
 
-## Current Milestone: v1.2 데이터 심화 분석
+## Current Milestone: v1.3 매출/비용 분析
 
-**Goal:** 고객 유형(왕복/부름/편도) 분석, 매출 세분화(대여/PF/주행/부름/기타), 비용 카테고리별 드릴다운으로 데이터 인사이트를 강화한다.
+**Goal:** 매출 세분화(대여/PF/주행/부름/기타), 비용 카테고리별 드릴다운으로 데이터 인사이트를 강화한다.
 
 **Target features:**
-- 고객 유형별 이용건수 도넛·추이 차트
 - 매출 유형별 구성 차트 + 금액/비율
 - 비용 카테고리 합계 + 드릴다운 세부항목
 
@@ -42,12 +41,12 @@
 - ✓ 기간 선택기 (이번 주/지난 주/이번 달/지난 달 토글) — v1.1
 - ✓ CSV/Excel 내보내기 — v1.1
 - ✓ KPI 카드 미니 스파크라인 차트 — v1.1
+- ✓ 고객 유형 분析 — 도넛 차트 + 추이 스택 바 차트 + 기간 필터 연동 (CTYPE-01/02/03) — v1.2
 
 ### Active
 
-- [ ] 고객 유형 분석 (왕복/부름/편도 이용건수 도넛·추이) — v1.2
-- [ ] 매출 세분화 (대여/PF/주행/부름/기타 구성 차트) — v1.2
-- [ ] 비용 분석 카테고리 합계 + 드릴다운 — v1.2
+- [ ] 매출 세분화 (대여/PF/주행/부름/기타 구성 차트) — v1.3
+- [ ] 비용 분석 카테고리 합계 + 드릴다운 — v1.3
 
 ### Out of Scope
 
@@ -62,6 +61,7 @@
 
 - **Shipped v1.0** (2026-02-27): 5 phases, 13 plans, ~3,120 LOC TypeScript
 - **Shipped v1.1** (2026-03-01): 3 phases, 7 plans, ~967 LOC added → total ~4,087 LOC TypeScript
+- **Shipped v1.2** (2026-03-02): 2 phases, 4 plans, 12 tasks, ~718 LOC added → total ~4,805 LOC TypeScript
 - Tech stack: Next.js 16, React 19, TypeScript 5, Tailwind CSS v4, shadcn/ui, Recharts 3, NextAuth.js v5 beta, Google Sheets API v4, xlsx 0.20.3 (SheetJS CDN tarball), vitest
 - Sheets 구조: `일별` 시트 (날짜 | 매출 | GPM | 이용시간 | 이용건수 | 가동률), `주차별` 시트 (주차 | 매출 | GPM | 이용시간 | 이용건수 | 가동률)
 - 헤더 이름 기반 컬럼 매핑 적용 — 시트 컬럼 순서 변경에도 파싱 안정적
@@ -93,6 +93,9 @@
 | KpiCards fullData prop | sparkline이 필터 기간과 독립적으로 전체 이력 사용 | ✓ Good — 기간 필터 첫날에도 스파크라인 표시 |
 | Google Sheets 날짜 정규화 위치 (parseDailySheet) | 모든 컨슈머가 ISO 형식을 받도록 입력단에서 처리 | ✓ Good — filterDailyByPeriod 문자열 비교 안정화 |
 | vitest 선택 (단위 테스트) | ESM/TypeScript 네이티브, Next.js와 독립 실행 | ✓ Good — 별도 babel 설정 없이 순수 함수 TDD 가능 |
+| v1.2 범위 축소 (Phase 9-10만) | REV/COST UI가 미완료, 고객 유형 분析만 완성 | ✓ Good — 작동하는 기능만 마일스톤 태그 |
+| PieChart 중앙 텍스트 x=50% y=50% | 픽셀 좌표는 ResponsiveContainer 폭 변동 시 깨짐 | ✓ Good — 비율 좌표로 안정적 렌더링 |
+| stackId 바에서 radius는 최상단만 | 내부 세그먼트 radius 시 시각적 갭 발생 | ✓ Good — 편도(최상단)에만 radius 적용 |
 
 ---
-*Last updated: 2026-03-01 after v1.2 milestone started*
+*Last updated: 2026-03-02 after v1.2 milestone shipped*

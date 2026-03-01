@@ -1,5 +1,14 @@
 # Milestones
 
+## v1.2 고객 유형 분析 (Shipped: 2026-03-01)
+
+**Phases completed:** 2 phases, 4 plans, 0 tasks
+
+**Key accomplishments:**
+- (none recorded)
+
+---
+
 ## v1.0 MVP (Shipped: 2026-02-27)
 
 **Phases completed:** 5 phases, 13 plans, 0 tasks

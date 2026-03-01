@@ -1,9 +1,9 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.2
-milestone_name: 데이터 심화 분석
+milestone_name: 고객 유형 분析
 status: unknown
-last_updated: "2026-03-01T17:10:01.462Z"
+last_updated: "2026-03-01T17:16:59.031Z"
 progress:
   total_phases: 10
   completed_phases: 10

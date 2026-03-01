@@ -1,148 +1,287 @@
 # Pitfalls Research
 
-**Domain:** Korean sales dashboard extending Next.js 16 + Google Sheets starter kit
-**Researched:** 2026-02-21
-**Confidence:** HIGH (grounded in codebase evidence and documented concerns)
+**Domain:** Korean sales dashboard — v1.1 feature additions (기간 선택기, CSV/Excel 내보내기, KPI 스파크라인)
+**Researched:** 2026-02-27
+**Confidence:** HIGH (grounded in codebase evidence, verified against official docs and community reports)
+
+> **Scope note:** This file covers pitfalls specific to adding the three v1.1 features to the existing v1.0 system. The v1.0 system is already shipped and working. v1.0 pitfalls (column-index parsing, type migration, Korean number formatting, etc.) are resolved and documented in git history. This file focuses on integration risks for the new feature set only.
+
+---
 
 ## Critical Pitfalls
 
-### Pitfall 1: Column-Index Parsing Breaks Silently When Sheet Structure Changes
+### Pitfall 1: Period Filter Adds a New searchParam That Breaks Existing Suspense Key Strategy
 
 **What goes wrong:**
-The existing parser pattern in `lib/data.ts` extracts columns by numeric index (`row[0]`, `row[1]`, etc.) after skipping a header row. When the team's Daily/Weekly sheets have columns added, reordered, or renamed, the parser returns wrong values mapped to wrong fields -- without any error. Revenue ends up in the "hours" field, operating profit becomes "utilization rate," and the dashboard displays confidently wrong numbers.
+The existing dashboard page uses `key={activeTab}`, `key={"charts-" + activeTab}`, and `key={"table-" + activeTab}` as Suspense reset keys. When the period filter adds a `period` searchParam (e.g., `?tab=daily&period=this-week`), any component that consumes both `tab` and `period` needs its Suspense key to incorporate both. If only `tab` is in the key, changing the period does NOT trigger a Suspense fallback — the old data stays visible while new data loads in the background. Users see stale period data rendered immediately and then a jarring re-render when new data arrives.
 
 **Why it happens:**
-The existing code (`parseKpiFromSheet`, `parseMonthlyRevenueFromSheet`) was built for a fixed demo sheet. The new daily sheet has 7+ columns (일자, 매출, 손익, 이용시간, 이용건수, 가동률, 매월목표) and the weekly sheet has 6 columns (주차, 매출, 손익, 이용시간, 이용건수, 가동률). Korean column headers add complexity because anyone editing the Google Sheet could insert a blank column or move things around. The parsers never validate that column headers match what they expect.
+The current server-side filtering approach (read searchParams in `page.tsx`, pass filtered data to components) is correct — but the Suspense `key` prop must include ALL searchParams that affect a component's data, not just `tab`. This is easy to forget when adding a second filter dimension.
 
 **How to avoid:**
-1. Parse by header name, not index. Read `rows[0]` first, build a `Map<string, number>` of header-to-column-index, then look up each field by its Korean header name.
-2. Throw a clear error (or return a typed error object) when an expected header is missing. This surfaces immediately in logs rather than silently producing garbage.
-3. Define expected headers as constants: `const DAILY_HEADERS = ["일자", "매출", "손익", "이용시간", "이용건수", "가동률", "매월목표"]` and validate at parse time.
+Compute a composite Suspense key that includes both `tab` and `period`:
+```tsx
+const suspenseKey = `${activeTab}-${activePeriod}`;
+// Use: key={suspenseKey}, key={`charts-${suspenseKey}`}, key={`table-${suspenseKey}`}
+```
+The period filter logic (filtering `DailyRecord[]` by date range) happens server-side in `page.tsx` or a helper called from it. The filtered slices are passed as props to child components. No Client Component fetches data — the existing Server Component architecture is preserved.
 
 **Warning signs:**
-- KPI cards show `0` or `NaN` despite data existing in the sheet
-- Chart values do not match what the team sees in the actual spreadsheet
-- A field like "가동률" (utilization rate, typically 0-100%) shows values in the millions (because it received a revenue column)
+- Switching periods does not show the KPI skeleton (but data does change after a delay)
+- Network tab shows the page re-request but UI appears instant with wrong data
+- Two rapid period switches show data from the first switch, not the second
 
 **Phase to address:**
-Phase 1 (Type + Parser foundation) -- this must be the very first thing built because every downstream component depends on correct parsing.
+Period filter phase — establish the composite key pattern before wiring up any period toggle UI.
 
 ---
 
-### Pitfall 2: Type Migration Leaves Orphaned References That Compile But Crash
+### Pitfall 2: Period Filter Applied Client-Side to All Data Defeats the Server Component Architecture
 
 **What goes wrong:**
-The existing codebase imports `KpiData`, `MonthlyRevenue`, `CategoryDistribution`, `RecentOrder`, and `DashboardData` from `types/dashboard.ts`. These types are used in `lib/data.ts`, `lib/mock-data.ts`, `components/dashboard/kpi-cards.tsx`, `components/dashboard/revenue-chart.tsx`, `components/dashboard/category-chart.tsx`, and `components/dashboard/recent-orders-table.tsx`. When you replace these types with new team-specific types (e.g., `DailySalesRow`, `WeeklySalesRow`, `SalesKpi`), you either break the entire build at once (if you delete the old types) or end up with a codebase that has both old and new types where some components still reference the old shape but receive data shaped like the new type.
+The tempting shortcut is to fetch ALL data from Google Sheets (as today) and filter it in a Client Component using `useState` for the selected period. This appears simpler — no server round-trip per period change. But it:
+1. Sends the full year's daily records to the browser (potentially 300+ rows)
+2. Forces KPI cards and charts to become Client Components (or adds a Client wrapper over Server Components)
+3. Breaks the existing clean Server Component boundary where data stays on the server
+4. Makes the period state live in React state instead of URL, losing the shareability/bookmarkability that `searchParams` provides
 
 **Why it happens:**
-TypeScript's structural typing means if the new type happens to share some field names with the old type, the compiler will not catch mismatches. For example, if both old `KpiData` and new `SalesKpi` have a field called `totalRevenue: number`, a component designed for the old shape might compile fine but not display the new fields (손익, 가동률, 이용건수) that were added. The `as` cast in the existing code (`row[4] as RecentOrder["status"]`) shows the codebase already uses type assertions that bypass safety.
+Client-side filtering feels faster because it avoids a server round-trip. For a small dataset (~30-90 rows for one quarter), it works fine in development. The architectural cost is invisible until it's time to share a filtered dashboard URL, or until a team member opens DevTools and sees the full financial dataset in a JSON response.
 
 **How to avoid:**
-1. Do a complete type replacement in one atomic step: delete old types, define new types, fix every compile error. Do not maintain parallel type systems.
-2. Start by grepping all imports of each old type (`KpiData`, `MonthlyRevenue`, `CategoryDistribution`, `RecentOrder`, `DashboardData`) and plan the replacement for each consumer before writing any code.
-3. Make the new types intentionally incompatible with the old ones (different field names) so the compiler catches every reference. For example, use `revenue` (old) vs `매출액` or `salesAmount` (new) to force compile errors everywhere.
-4. Update `lib/mock-data.ts` in the same step -- it must conform to the new types.
+Keep filtering server-side. The period filter is a new searchParam. `page.tsx` reads both `tab` and `period` from `searchParams`, passes them to the same `getTeamDashboardData()` call, and filters the result:
+```tsx
+const { tab = 'daily', period = 'this-week' } = await searchParams;
+const data = await getTeamDashboardData();
+const filteredDaily = filterByPeriod(data.daily, period);
+```
+`filterByPeriod` is a pure function in `lib/period-filter.ts` — no new API calls, just slicing the already-fetched array. The server round-trip is the existing page navigation, not an additional fetch.
 
 **Warning signs:**
-- Build succeeds but dashboard shows blank cards or "undefined"
-- Some components still show old demo data while others show new data
-- TypeScript `any` or `as` casts appearing to "fix" type errors
+- A Client Component imports `useState` for the selected period
+- KPI cards or chart components have `"use client"` added to handle period state
+- The period selector component calls `setData()` or similar to update filtered data
 
 **Phase to address:**
-Phase 1 (Type definitions) -- must be done first and completely, before any parser or component work.
+Period filter phase — architectural decision must be locked in before writing any UI.
 
 ---
 
-### Pitfall 3: Korean Number Strings With Commas, Spaces, or Won Symbol Fail Number()
+### Pitfall 3: Week Boundary Calculation Diverges From the Sheet's "주차" Convention
 
 **What goes wrong:**
-Google Sheets formats Korean locale numbers with commas (e.g., `"1,234,567"`) and may include the won symbol (`"₩1,234,567"`) or percentage signs (`"85.3%"`). The existing pattern `Number(row[1] ?? 0)` returns `NaN` for any of these formatted strings because `Number("1,234,567")` is `NaN` in JavaScript. The existing `Number(value ?? 0)` pattern was already flagged in CONCERNS.md as silently masking data integrity issues.
+The `이번 주 / 지난 주` filter must map to the same week boundaries as the sheet's `주차별` records. The sheet likely uses Korean business-week convention (Monday = week start), but JavaScript's `Date.getDay()` uses Sunday = 0. If `startOfWeek` is called without `{ weekStartsOn: 1 }`, "this week" includes Sunday of last week and excludes Monday of the current week. A "this week" filter applied to the Daily sheet returns one wrong day on Mondays.
+
+For the Daily sheet, there is no "주차" column — filter must be computed from `date` strings (format: `"YYYY-MM-DD"`). For the Weekly sheet, filtering means selecting `week` label strings (format: `"N주차"` or `"N월 M주차"`). These are different filtering strategies for different data sources, and mixing them produces inconsistent KPI vs. chart comparisons.
 
 **Why it happens:**
-Google Sheets API returns cell values as formatted display strings by default (using `FORMATTED_VALUE` render option). Korean-locale spreadsheets commonly format numbers with comma separators. The team members who maintain the sheet may also apply currency formatting or percentage formatting in Google Sheets. The raw API response preserves this formatting.
+The Daily sheet stores absolute dates; the Weekly sheet stores opaque Korean week labels. A developer implementing one filter path assumes it works for both. The Korean week label format is not ISO standard — "1주차" in January means ISO week 1, but "3월 2주차" means the 2nd week of March, which may be ISO week 10 or 11 depending on the year.
 
 **How to avoid:**
-1. Use `valueRenderOption: "UNFORMATTED_VALUE"` in the Google Sheets API call (`sheets.spreadsheets.values.get`). This returns raw numeric values instead of formatted strings. However, this changes the return type to `any[][]` (mixed numbers and strings) rather than `string[][]`, so the type signature of `fetchSheetData` must be updated.
-2. If formatted values are needed (e.g., for date columns that should stay as strings), use `valueRenderOption: "FORMATTED_VALUE"` but add a robust number parser: strip commas, won signs, percent signs, and whitespace before parsing. Example: `parseKoreanNumber(s: string): number` that handles `"₩1,234,567"`, `"85.3%"`, `"1,234"`, plain `"1234"`.
-3. Add explicit validation: if `isNaN(parsedValue)`, log the raw string and the column name so bad data is surfaced immediately.
+1. Use `date-fns` with explicit `{ weekStartsOn: 1 }` for ALL week start/end calculations.
+2. Treat Daily and Weekly filtering as separate code paths. Daily: filter by `date` string range. Weekly: filter by matching `week` label patterns (regex or string matching the label format from the existing sheet).
+3. Document the week label format as a constant in `lib/period-filter.ts` so future maintainers know the expected format.
+4. Test the boundary: on the Monday of a new week, "이번 주" should include today, not yesterday.
 
 **Warning signs:**
-- All numeric KPIs show `NaN` or `0` when connected to real Google Sheets
-- Charts render flat at zero despite data being visible in the spreadsheet
-- This only manifests when connected to the real sheet, not with mock data (because mock data uses clean JavaScript numbers)
+- "이번 주" filter on a Monday morning returns zero records from the Daily sheet
+- Weekly KPI shows a different week than the Daily KPI for the same "이번 주" selection
+- Console warnings from `parseKoreanNumber` for week-label strings being passed to the number parser (symptom of mismatched filter logic)
 
 **Phase to address:**
-Phase 1 (Parser layer) -- must be resolved when building the new parsers. Test with actual sheet data early, not just mock data.
+Period filter phase — write a `lib/period-filter.ts` utility with unit tests covering Monday boundaries before integrating with any component.
 
 ---
 
-### Pitfall 4: Recharts CSS Variable Colors Break in SVG Context and Dark Mode
+### Pitfall 4: "이번 달 / 지난 달" Filter Produces Misleading MTD Comparisons
 
 **What goes wrong:**
-The existing codebase already documents this problem. In `category-chart.tsx` (line 16-23), the code comments: "CSS 변수 대신 실제 색상 값 매핑 (Recharts SVG에서 CSS 변수가 작동하지 않을 수 있음)" and uses hardcoded HSL values instead of CSS variables. However, `revenue-chart.tsx` uses `var(--color-chart-1)` directly in the `stroke` prop. This inconsistency means some charts may fail to render colors in certain browsers or in dark mode (where the CSS variables resolve to different values). When adding new chart components (매출 추이, 손익 추이, 가동률 차트), developers will face the same decision and may mix approaches.
+If today is February 5 and the filter is "이번 달 vs 지난 달," a naive implementation compares February 1-5 (5 days) against ALL of January (31 days). Revenue for January appears ~6x higher than February, making this month look catastrophically bad. The team draws wrong business conclusions.
 
 **Why it happens:**
-Recharts renders to SVG, and SVG `fill`/`stroke` attributes handle CSS custom properties inconsistently across browsers. Some browsers resolve `var(--chart-1)` in SVG attributes, others do not. The oklch color space used in `globals.css` adds another layer of complexity because not all SVG renderers support oklch. Dark mode switching requires the CSS variables to re-resolve, but SVG attributes may cache the initial value.
+"이번 달" naturally means "from the first of this month to today." "지난 달" is ambiguous — it can mean "all of last month" (full 31 days) or "the same elapsed days of last month" (January 1-5). The correct business interpretation is the same elapsed days (MTD vs same-period MTD). This requires knowing "today" at render time, which is a server-side concern.
 
 **How to avoid:**
-1. Pick ONE approach for all new charts and be consistent. The safest approach is: use CSS variables in the Recharts `style` prop (not the attribute prop), or use a JavaScript-side color resolver that reads the computed CSS variable value at render time.
-2. Alternatively, define chart colors as a TypeScript constant that maps to the theme. Create a `useChartColors()` hook (Client Component) that reads computed styles from the DOM and returns resolved color strings. This works reliably in both light and dark modes.
-3. Test every new chart in both light and dark mode. The existing `revenue-chart.tsx` may already be broken in dark mode without anyone noticing if the oklch dark mode colors happen to be close to the light mode colors.
+Define the filter semantics explicitly in code comments:
+- "이번 달": `startOfMonth(today)` to `today`
+- "지난 달": `startOfMonth(subMonths(today, 1))` to `addDays(startOfMonth(subMonths(today, 1)), elapsedDays - 1)` where `elapsedDays = today.getDate()`
+
+This requires the filter function to receive `today` as a parameter (not `new Date()` called inside the function), so it can be tested with a fixed date.
 
 **Warning signs:**
-- Charts appear with no visible lines/bars (transparent or white-on-white)
-- Colors do not change when toggling dark/light mode
-- Colors differ between dev server (Chrome) and production deployment
+- At the start of a month, "이번 달" KPI looks terrible compared to "지난 달"
+- At the end of a month, "이번 달" and "지난 달" appear equal regardless of actual performance
+- The "이번 달" record count differs wildly from "지난 달" record count
 
 **Phase to address:**
-Phase 2 (Chart components) -- establish the color pattern before building any charts. Retroactively fix the existing `revenue-chart.tsx` inconsistency as part of this phase.
+Period filter phase — this is a business logic decision that must be documented and tested before the UI is built.
 
 ---
 
-### Pitfall 5: Period Comparison Logic With Incorrect Week/Month Boundary Calculations
+### Pitfall 5: CSV Export Produces Garbled Korean Characters in Excel (Missing UTF-8 BOM)
 
 **What goes wrong:**
-"이번 주 vs 지난 주" and "이번 달 vs 지난 달" comparisons produce wrong results at month boundaries. For example: if today is Monday March 3, "지난 주" should be Feb 24-Mar 1, but a naive "subtract 7 days" approach might compare against Feb 17-23. If the daily sheet has data for calendar months and the comparison crosses a month boundary, the "이번 달 MTD" vs "지난 달 MTD" calculation must compare the same number of elapsed days (e.g., March 1-3 vs February 1-3), not all of last month vs partial current month.
+A plain UTF-8 CSV file downloaded from the browser opens in Excel on Windows with Korean characters replaced by `???` or random symbols. Excel on Windows defaults to the system code page (CP949/EUC-KR) for CSV files unless a Byte Order Mark (BOM) signals UTF-8 encoding. Without the BOM prefix `\uFEFF`, Korean headers like `일자`, `매출`, `이용건수` become unreadable. Users think the export is broken.
 
 **Why it happens:**
-JavaScript `Date` math is notoriously error-prone. Months have different lengths (28/29/30/31 days). The team's "주차" (week number) in the weekly sheet may follow the Korean/ISO week numbering convention (weeks starting Monday) which differs from JavaScript's `getDay()` (Sunday = 0). If the sheet uses "W1", "W2" etc. as week identifiers, matching these to calendar dates requires knowing the year's week-numbering scheme.
+`Blob` created with a plain UTF-8 string lacks the BOM that Excel needs. This is a well-known issue specific to CSV + Excel + East Asian characters. It does not manifest in Google Sheets, LibreOffice, or macOS Numbers (which default to UTF-8), so it may not appear in developer testing.
 
 **How to avoid:**
-1. Use `date-fns` (already common in the ecosystem, lightweight) for all date arithmetic. Specifically: `startOfWeek(date, { weekStartsOn: 1 })` for Korean Monday-start weeks, `startOfMonth`, `subWeeks`, `subMonths`, `isSameDay`, `isWithinInterval`.
-2. For MTD comparison: calculate the number of elapsed days in the current month, then compare against exactly that many days from the previous month. Do not compare "all of last month" vs "partial this month."
-3. For weekly sheet: parse week identifiers (e.g., "W5", "5주차") into date ranges using a well-defined convention, and document that convention.
-4. Write unit tests for boundary cases: first day of month, last day of month, month with 28 days vs 31 days, year boundary (December to January).
+Prefix the CSV string with the UTF-8 BOM character before creating the Blob:
+```typescript
+const BOM = '\uFEFF';
+const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+```
+This is a one-line fix but must be intentional — it is not added automatically by any serialization utility.
 
 **Warning signs:**
-- Comparison percentages are wildly off on the 1st of the month (comparing 1 day vs 28-31 days)
-- "지난 주" shows data from 2 weeks ago
-- Different team members see different "이번 주" values depending on when they check
+- Export works correctly when opened in Google Sheets or LibreOffice but not Excel
+- Korean column headers appear as `ÀÏÀÚå` or similar in Excel
+- The file download itself succeeds (correct file size, no JS error)
 
 **Phase to address:**
-Phase 2 or 3 (Period comparison logic) -- this is feature logic that should be built after the data layer is solid, with comprehensive unit tests.
+Export phase — add the BOM to the initial CSV generation implementation, not as a post-hoc fix.
 
 ---
 
-### Pitfall 6: Hardcoded Sheet Range Strings Fail When Data Grows
+### Pitfall 6: Excel Export Library Bundle Adds 1MB+ to the Client Bundle
 
 **What goes wrong:**
-The existing code uses fixed ranges like `"KPI!A1:B5"` and `"매출!A1:B13"`. The new daily sheet will grow every day (one row per day -- potentially 365 rows per year). The weekly sheet grows by one row per week. If the range is hardcoded to, say, `"daily!A1:H32"` (expecting one month of data), it silently stops returning rows beyond row 32. The dashboard shows only partial data with no indication that rows are being cut off.
+ExcelJS (bundled: ~1.08MB) and SheetJS/xlsx (bundled: ~1.03MB) are heavy libraries. If imported directly in a Client Component, they are included in the page's JavaScript bundle and downloaded by every user who loads the dashboard — even users who never click "내보내기." This significantly increases initial load time for a tool that should feel instant.
 
 **Why it happens:**
-This pattern was acceptable for the demo starter kit where data was static. For a live operational dashboard where rows are added daily, fixed ranges are fundamentally wrong. The CONCERNS.md already flags this as tech debt: "Hardcoded Data Ranges in Sheet Fetching."
+The natural implementation puts the export handler in a Client Component (`"use client"`) and imports the library at the top. Next.js bundles all imports of Client Components eagerly. There is no automatic tree-shaking for dynamically-used export libraries.
 
 **How to avoid:**
-1. Use open-ended ranges: `"daily!A:H"` (entire columns A through H) instead of `"daily!A1:H32"`. Google Sheets API returns only rows that have data, so this does not fetch empty rows.
-2. If you need to limit data (e.g., only current month), apply filtering in the parser after fetching, not by constraining the API range.
-3. Add a data count check: if the parser receives fewer rows than expected for the time period, log a warning.
+Choose one of two approaches:
+
+**Option A — Dynamic import (recommended for this project):** Keep CSV export as a pure client-side operation (no server round-trip) but lazily load the formatting logic:
+```typescript
+// Only imported when the button is clicked, not at page load
+const { generateCSV } = await import('@/lib/csv-export');
+```
+For a simple CSV export, no external library is needed at all — hand-roll the CSV serialization in ~20 lines. This keeps the bundle delta at 0KB.
+
+**Option B — Server-side export via Route Handler:** For Excel (.xlsx) format, use a Next.js Route Handler (`app/api/export/route.ts`). The heavy library (ExcelJS) lives in the server bundle only. The client makes a `fetch()` request and receives a binary blob. No client bundle impact.
+
+For this project, Option A for CSV and Option B for Excel is the cleanest split. Do not use a large library client-side for a feature that is used occasionally.
 
 **Warning signs:**
-- Dashboard shows data only up to a certain date despite newer data existing in the sheet
-- Charts cut off mid-month
-- No errors in logs (because the API call succeeds -- it just returns fewer rows)
+- Lighthouse/bundle analyzer shows a 1MB+ chunk named `exceljs` or `xlsx`
+- First page load is slower after adding the export feature
+- The export library is imported at the top level of a `.tsx` file with `"use client"`
 
 **Phase to address:**
-Phase 1 (Data layer) -- must be fixed when building the new `fetchSheetData` calls for daily/weekly sheets.
+Export phase — decide the architecture (client CSV vs. server Excel) before adding any dependency to `package.json`.
+
+---
+
+### Pitfall 7: SheetJS Public npm Package Has Known Security Vulnerabilities
+
+**What goes wrong:**
+The `xlsx` package available on the public npm registry (the last version is 0.18.5, published 2022) has high-severity vulnerabilities: Denial of Service via memory/CPU exhaustion (CVE-2023-30533) and prototype pollution (affects versions through 0.19.2). Even though this project only generates files (not parsing untrusted input), using a vulnerable package introduces supply chain risk and will fail dependency audits.
+
+**Why it happens:**
+SheetJS moved its development to a private registry after 2022. The public npm package is abandoned and frozen at a vulnerable version. Developers who search "xlsx npm" and install it get the abandoned version without a clear warning.
+
+**How to avoid:**
+Do not install `xlsx` from the public npm registry. Options:
+1. For CSV: no library needed — hand-roll the serializer.
+2. For Excel: use `exceljs` (actively maintained, public npm, no known high-severity CVEs as of 2026-02-27).
+3. If SheetJS is required: use the SheetJS Pro/private registry — this is not free and adds procurement complexity. Not recommended for this project.
+
+Run `npm audit` after any new package install. If the report shows `xlsx` vulnerabilities, remove the package.
+
+**Warning signs:**
+- `npm install xlsx` completes without errors (because the abandoned version is still there)
+- `npm audit` reports HIGH severity vulnerabilities referencing `xlsx` or `sheetjs`
+- Package.json shows `"xlsx": "^0.18.x"` or similar version in the 0.x range
+
+**Phase to address:**
+Export phase — package selection decision must be made before installing anything.
+
+---
+
+### Pitfall 8: Sparkline Chart in KPI Card Causes Hydration Mismatch From `useTheme`
+
+**What goes wrong:**
+Sparkline charts inside KPI cards use Recharts (`"use client"`) and `useTheme` for color resolution — same pattern as the existing full-size charts. During server-side rendering, `useTheme` returns `undefined` for `resolvedTheme`. The chart renders with the default (light) theme colors. On the client, after hydration, `resolvedTheme` resolves to `"dark"`. React detects a mismatch between server HTML and client rendering, logs a hydration error, and the chart may flicker or fail to render.
+
+This problem is latent in the existing charts but less visible because full-size charts are rendered in dedicated components that Next.js already handles as CSR boundaries. Sparklines embedded inside the KPI card — which is currently a Server Component — add a new CSR boundary in an unexpected place.
+
+**Why it happens:**
+`KpiCard` is currently a Server Component (no `"use client"` directive). Adding a Recharts sparkline inside it forces the entire component to become a Client Component, or requires a new child `SparklineChart` Client Component. If the parent KPI card remains a server component and the sparkline is a client child, `useTheme`'s SSR behavior (returning `undefined` initially) causes the theme mismatch.
+
+**How to avoid:**
+1. Keep `KpiCard` as a Server Component. Create a separate `SparklineChart` Client Component that is imported inside `KpiCard`. This is the correct Next.js pattern for mixing server/client within a component tree.
+2. In `SparklineChart`, guard against the SSR `resolvedTheme === undefined` case:
+```typescript
+const { resolvedTheme } = useTheme();
+const colors = getChartColors(resolvedTheme === 'dark'); // false when undefined — safe default
+```
+3. The existing `getChartColors(isDark: boolean)` function in `chart-colors.ts` already handles this pattern — use it directly, same as the existing charts.
+4. Do NOT add `suppressHydrationWarning` to the chart element as a workaround — it hides the symptom without fixing the cause.
+
+**Warning signs:**
+- Browser console shows "Hydration failed because the initial UI does not match"
+- KPI card sparklines flash from light to dark colors on page load
+- TypeScript error: "Server Component cannot use React hooks" — meaning `useTheme` was added to a Server Component
+
+**Phase to address:**
+Sparkline phase — component boundary decision must be made before any sparkline code is written.
+
+---
+
+### Pitfall 9: Recharts `ResponsiveContainer` Renders at Zero Dimensions Inside a KPI Card
+
+**What goes wrong:**
+KPI cards use `CardContent` with fixed heights and padding. When `ResponsiveContainer width="100%" height={60}` (a typical sparkline height) is placed inside a flex card layout, Recharts may calculate 0 width during the first render pass and log: "The width(0) and height(0) of chart should be greater than 0." The chart appears invisible until a window resize event triggers a recalculation. This is a known Recharts issue, particularly in constrained-width containers and during Suspense boundary mounting.
+
+**Why it happens:**
+`ResponsiveContainer` uses a `ResizeObserver` to measure its container. If the container is inside a CSS flex or grid layout that hasn't fully painted, the initial measurement may return 0. The existing full-size charts avoid this because their parent containers (`Card` in `ChartsSection`) have explicit widths defined by the grid. KPI cards in a 5-column grid have narrower, more constrained widths.
+
+**How to avoid:**
+Add explicit `minWidth` to `ResponsiveContainer`:
+```tsx
+<ResponsiveContainer width="100%" height={60} minWidth={80}>
+```
+Also verify that the sparkline container element has a non-zero CSS width before Recharts mounts. A fallback fixed-width wrapper (`<div style={{ width: '100%', minWidth: '80px' }}>`) around `ResponsiveContainer` resolves most cases.
+
+Alternatively, for sparklines specifically, consider a fixed-dimension SVG approach (`<svg width={120} height={40}>`) without `ResponsiveContainer`. A sparkline does not need to be responsive in the same way as a full-size chart.
+
+**Warning signs:**
+- Sparklines invisible on first load but appear after window resize
+- Browser console: "The width(0) and height(0) of chart should be greater than 0"
+- Sparklines render in Chrome but not in Firefox (different ResizeObserver timing)
+
+**Phase to address:**
+Sparkline phase — test in a narrow KPI card container before considering the implementation complete.
+
+---
+
+### Pitfall 10: Sparkline Data Is the Same Full Dataset as Charts — Large Data Passed to Every KPI Card
+
+**What goes wrong:**
+If the sparkline receives the full `DailyRecord[]` (potentially 365 records) for its trend line, all 365 records are passed as props to 5 KPI card sparklines = 5 × 365 = 1825 objects in the React component tree. For a Server Component passing data to Client Components, this data is serialized to JSON in the RSC payload. Large RSC payloads slow time-to-interactive and increase bandwidth.
+
+**Why it happens:**
+The existing `KpiCards` component receives `data: TeamDashboardData` and uses `data.daily` for all its logic. It's natural to pass the same array to the sparkline. The problem is invisible in development (fast network, small dataset) and only appears with real production data accumulated over months.
+
+**How to avoid:**
+Slice the sparkline data in the Server Component before passing to the Client sparkline:
+```tsx
+// In KpiCards (Server Component) — pass only last N records
+const sparklineData = sorted.slice(-30); // last 30 days for the sparkline
+```
+30 records is sufficient for a trend sparkline. The full dataset is already used for KPI calculation; the sparkline does not need it.
+
+**Warning signs:**
+- React DevTools Profiler shows 300+ items in the sparkline chart's data prop
+- RSC payload in Network tab is unexpectedly large (>100KB)
+- Page feels slow to interactive on first load despite no API changes
+
+**Phase to address:**
+Sparkline phase — establish the data slicing pattern in the first sparkline implementation.
 
 ---
 
@@ -152,25 +291,31 @@ Shortcuts that seem reasonable but create long-term problems.
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Using `Number()` without validation | Fast parser code | NaN propagates silently into charts/KPIs, team sees wrong data | Never -- add `parseKoreanNumber()` from day one |
-| Keeping old demo types alongside new types | Avoids breaking existing pages during migration | Two type systems, confusion about which is canonical, components may use wrong type | Only during a single PR -- merge must remove old types entirely |
-| Hardcoding chart colors as HSL strings | Works immediately in SVG | Dark mode breaks, colors don't match theme, every new chart copy-pastes the color array | Only if you document it as the standard and create a shared constant |
-| Computing period comparisons inline in components | Quick to implement | Logic duplicated across KPI cards and charts, edge cases fixed in one place but not others | Never -- extract to `lib/period.ts` utility |
-| Using `string` type for dates from sheets | Avoids date parsing complexity | Cannot do reliable date arithmetic, timezone bugs surface later | Only for display-only fields (not for comparison/filtering) |
+| Client-side period filtering with useState | No server round-trip on period change | Full dataset sent to browser; period state not in URL (not shareable); breaks Server Component architecture | Never — use searchParams + server-side filter |
+| Inline CSV generation in event handler | Fast to implement | Encoding bugs (missing BOM), no type safety, duplicated logic if reused | Only in a throwaway prototype |
+| Importing ExcelJS at top level of Client Component | Zero API design work | 1MB+ bundle added to every page load | Never — use dynamic import or Route Handler |
+| Using `xlsx` from public npm | npm install just works | Known high-severity CVEs; fails security audits | Never — use exceljs or hand-rolled CSV |
+| Adding `useTheme` directly to KpiCard | Simplest code path | Forces entire KpiCard to be Client Component, moves data fetching complexity | Never — keep KpiCard as Server Component, use child Client Component for sparkline |
+| Hard-coding "이번 주 = last 7 days" | Simple implementation | Wrong on Mondays (Sunday included, Monday excluded); diverges from sheet's week convention | Never — use date-fns with weekStartsOn: 1 |
+| "지난 달" = all records from previous calendar month | Intuitive | MTD comparison is misleading (e.g., 5 days vs 31 days at month start) | Never for KPI comparison; acceptable only for "show all data" view mode |
+
+---
 
 ## Integration Gotchas
 
-Common mistakes when connecting to the Google Sheets API for Korean data.
+Common mistakes when connecting the new features to the existing system.
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| Google Sheets API | Assuming `values.get()` returns numbers for numeric cells | It returns `string[][]` by default (`FORMATTED_VALUE`). Use `valueRenderOption: "UNFORMATTED_VALUE"` for numbers, or parse formatted strings explicitly. |
-| Google Sheets API | Using fixed ranges (e.g., `"A1:H30"`) for growing data | Use open-ended column ranges (`"A:H"`) and filter rows in code. |
-| Google Sheets API | Not handling empty rows in the middle of data | Google Sheets API omits trailing empty rows but may return empty strings for empty cells within data. Check for `row[i] === ""` or `row[i] === undefined`. |
-| Google Sheets API | Assuming sheet tab names are stable | Sheet tab names (e.g., "daily", "weekly") are user-editable. If someone renames the tab, the API call fails. Document required tab names clearly for the team. |
-| Google Sheets API (Korean) | Not accounting for merged cells in header rows | Merged cells in Google Sheets return value only in the top-left cell; other cells in the merged range are empty strings. Korean spreadsheets often merge header cells for visual grouping. |
-| Recharts + Next.js | Importing Recharts in a Server Component | Recharts requires DOM access. Every component using Recharts must have `"use client"` directive. The existing codebase does this correctly, but new chart components must follow the same pattern. |
-| Recharts | Passing `undefined` or `NaN` as data values | Recharts renders broken or invisible chart segments. Validate all numeric data before passing to chart `data` prop. |
+| Period filter + searchParams | Adding `period` param to only some Suspense keys | Add `period` to ALL Suspense keys that depend on filtered data: `${tab}-${period}` composite key |
+| Period filter + Tab Nav | Creating a separate period selector that manages its own URL params independently | Use the same `new URLSearchParams(searchParams.toString())` pattern as `TabNav` — preserve existing params, only update the changed key |
+| CSV export + Korean data | Using `new Blob([csvContent], { type: 'text/csv' })` | Prepend `'\uFEFF'` (UTF-8 BOM): `new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })` |
+| Excel export + Next.js | Importing `exceljs` in a `"use client"` component | Use a Route Handler (`app/api/export/route.ts`) — heavy library stays server-side, client receives blob via `fetch()` |
+| Sparkline + Server/Client boundary | Calling `useTheme` in KpiCard Server Component | Extract `SparklineChart` as a `"use client"` child component; `KpiCard` stays as a Server Component |
+| Sparkline + existing chart colors | Duplicating `getChartColors` logic inline | Import and reuse the existing `getChartColors` from `components/dashboard/charts/chart-colors.ts` |
+| Period filter + mock data | Mock data has fixed dates that may not fall in "이번 주" | Update mock data dates to be relative to today (e.g., last 30 days from `new Date()`), or document that period filter shows "no data" with mock data |
+
+---
 
 ## Performance Traps
 
@@ -178,10 +323,12 @@ Patterns that work at small scale but fail as usage grows.
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| Fetching both daily and weekly sheets on every page load | Slow initial render (400-1000ms) | Use Next.js ISR with `revalidate` or implement server-side caching. For a team dashboard with ~10 users, a 60-second cache is appropriate. | When 10+ users hit the dashboard simultaneously and API quota (100 req/100s) is exhausted |
-| Parsing the entire daily sheet (365 rows) every render | CPU spike on parse, unnecessary data transfer | Filter to current month + previous month in the parser. Only fetch what the UI needs for KPI + comparison. | When daily sheet accumulates multiple years of data (700+ rows) |
-| Re-rendering all charts when tab switches between Daily/Weekly | Visible chart redraw flicker | Use `React.memo()` on chart components. Keep both tab contents mounted but hidden (`display: none`) instead of conditionally rendering. Or use `useMemo` on the data transformation. | Immediately noticeable with 3+ charts on each tab |
-| No loading state during data fetch | Users see stale or blank content, assume dashboard is broken | Add Suspense boundaries with skeleton loading states for each card/chart section | Immediately on slower connections or when Sheets API is slow (>500ms) |
+| Full 365-row dataset as sparkline props | Large RSC payload, slow hydration | Slice to last 30 records before passing to sparkline Client Components | When daily sheet accumulates 3+ months of data (~90 rows triggers noticeable slowdown) |
+| ExcelJS imported in client bundle | 1MB+ JS downloaded by all users on every page load | Dynamic import on button click, or server-side Route Handler | Immediately on first deploy — bundle analyzer shows the problem |
+| Period selector triggers full page navigation on every change | Visible loading flash on each period toggle | Acceptable with `force-dynamic` + fast Sheets API; add `useTransition` wrapper if flash is jarring | When Google Sheets API latency exceeds 300ms (network or quota issues) |
+| Google Sheets API called per period change | Quota exhaustion with multiple simultaneous users changing periods rapidly | Acceptable for team of ~10 users (100 req/100s limit per user); document the quota ceiling | If users rapidly cycle through 4 periods, they make 4 × 2 sheet fetches = 8 API calls. With 10 users doing this simultaneously, approaching the 100 req/100s per-user limit |
+
+---
 
 ## Security Mistakes
 
@@ -189,36 +336,46 @@ Domain-specific security issues beyond general web security.
 
 | Mistake | Risk | Prevention |
 |---------|------|------------|
-| Exposing raw Google Sheets data to client components | Financial data (매출, 손익) visible in browser dev tools network tab. Not inherently wrong for an internal tool, but if the page is ever shared or screenshotted, raw API responses may be visible. | Keep data fetching in Server Components only. Pass only the computed/formatted values to Client Components. |
-| Not validating that sheet data is within reasonable ranges | A typo in Google Sheets (e.g., `12345678` instead of `1234567` -- an extra digit) propagates to the dashboard as authoritative data | Add sanity checks: revenue should be within expected order of magnitude, percentages between 0-100, dates within current year |
-| Silent fallback to mock data in production | If Google Sheets credentials expire, the dashboard shows demo data and the team makes business decisions based on fake numbers | Add a visible indicator when mock data is being used. Log credential failures as critical alerts, not just `console.error`. |
+| CSV/Excel export exposes raw financial data in browser network tab | Financial data (매출, 손익) appears in a plaintext CSV download — acceptable for internal tool, but if users share exported files without realizing they contain sensitive data | Add a visible header to exported files: "경남울산사업팀 내부 자료 — 외부 공유 금지" as the first row of the export |
+| Installing `xlsx` from public npm | High-severity CVE (prototype pollution, DoS) in the abandoned public registry version | Use `exceljs` or hand-rolled CSV. Run `npm audit` and treat HIGH findings as blocking. |
+| Export Route Handler without authentication check | `/api/export` would be publicly accessible if auth middleware is not applied | Verify that `proxy.ts` (the existing middleware) covers the `/api/export` path, or add explicit auth check inside the Route Handler using `auth()` from `next-auth` |
+| Period filter state in client cookie instead of URL | Session-based period state can persist stale period across different logins or tabs | Use URL searchParams only — stateless, shareable, no persistence issues |
+
+---
 
 ## UX Pitfalls
 
-Common user experience mistakes in Korean sales dashboards.
+Common user experience mistakes when adding these specific features.
 
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| Showing raw numbers instead of context (e.g., `₩1,234만` without target) | Team cannot tell if the number is good or bad | Always show target comparison: `₩1,234만 / ₩1,500만 (82.3%)` with color coding (red below target, green at/above) |
-| Period comparison without indicating the comparison base | "전주 대비 +12%" -- but which week is "전주"? | Show explicit date ranges: "2/10~2/16 vs 2/3~2/9 (+12%)" |
-| Tab switching resets scroll position | User scrolls down to see charts, switches tab, gets teleported to top | Maintain scroll position per tab, or use a fixed-height layout that does not scroll |
-| Treating 가동률 (utilization rate) the same as 매출 (revenue) in charts | Different scales (0-100% vs millions of won) on the same axis make one metric invisible | Use separate Y-axes or separate charts for percentage metrics vs absolute value metrics |
-| Not showing "last updated" timestamp | Team does not know if they are seeing today's data or yesterday's cached data | Show fetch timestamp: "마지막 업데이트: 2026-02-21 14:30" at the top of the dashboard |
+| Period selector only shows current options without indicating active selection | Team cannot tell which period they are viewing | Active period button must have clear visual state (e.g., solid background vs. outline); match the existing `TabNav` visual pattern |
+| "내보내기" button exports ALL data ignoring the active period filter | User selects "이번 주" expecting to export only this week's data, but gets the full dataset | Export function must respect the active `period` searchParam — pass it to the export logic |
+| No loading state during export generation | User clicks export, nothing happens for 1-3 seconds (especially for Excel via Route Handler), then file appears | Disable the export button and show a spinner during the async operation; re-enable on completion or error |
+| Period filter resets when switching Daily/Weekly tabs | User sets "이번 달" on Daily tab, switches to Weekly tab, period resets to "이번 주" | Preserve `period` param across tab switches using the same `URLSearchParams` preservation pattern as `TabNav` |
+| Sparkline shows the same data range as the main chart (full history) | Sparkline purpose is to show recent trend; showing 12 months of data makes the sparkline unreadable | Limit sparkline to last 30 days (Daily) or last 8 weeks (Weekly) regardless of period filter |
+| Mock data period filter shows "데이터 없음" with no explanation | Team confused why filter produces no data in development | Show an indicator when mock data is active; note that period filter uses static mock dates |
+
+---
 
 ## "Looks Done But Isn't" Checklist
 
 Things that appear complete but are missing critical pieces.
 
-- [ ] **Type migration:** All old types removed -- verify no `KpiData`, `MonthlyRevenue`, `CategoryDistribution`, `RecentOrder` imports remain in any file
-- [ ] **Parser validation:** Header row validation implemented -- verify parser throws/logs when column headers do not match expected Korean names
-- [ ] **Number parsing:** Korean-formatted numbers handled -- verify `"1,234,567"` and `"85.3%"` parse correctly, not as `NaN`
-- [ ] **Open-ended ranges:** Sheet ranges use column-only format -- verify no hardcoded row limits (e.g., `A1:H30`) in new code
-- [ ] **Dark mode charts:** All charts render correctly in dark mode -- verify by toggling theme and checking each chart has visible colors
-- [ ] **Period comparison edge cases:** Month boundary tested -- verify "이번 달 vs 지난 달" on March 1 produces correct comparison (not comparing 1 day vs 28 days of full Feb)
-- [ ] **Mock data updated:** `lib/mock-data.ts` conforms to new types -- verify mock data has all new fields (매출, 손익, 이용시간, 이용건수, 가동률, 매월목표)
-- [ ] **Tab state persistence:** Switching Daily/Weekly tabs does not re-fetch data -- verify network tab shows no new API calls on tab switch
-- [ ] **Error visibility:** Mock data fallback is visually indicated -- verify users can tell when they are seeing real vs mock data
-- [ ] **Empty state:** Dashboard handles a sheet with header row only (no data rows) -- verify charts show "데이터 없음" instead of crashing
+- [ ] **Period filter — BOM on KPI keys:** Suspense key includes both `tab` AND `period` — verify by switching periods and confirming the KPI skeleton appears
+- [ ] **Period filter — Monday boundary:** "이번 주" on a Monday includes today, not yesterday — verify with a fixed test date of a Monday
+- [ ] **Period filter — MTD semantics:** "이번 달" on the 5th compares 5 days vs 5 days of last month, not 5 days vs full last month — verify with a hardcoded test date of the 5th
+- [ ] **Period filter — URL preservation on tab switch:** Switching from Daily to Weekly preserves the `period` param — verify the URL shows `?tab=weekly&period=this-month` after switching
+- [ ] **Period filter — empty state:** Selecting "지난 주" when the sheet has only this week's data shows "데이터 없음" gracefully, not a crash
+- [ ] **CSV export — BOM:** Downloaded CSV opens in Excel on Windows with Korean headers readable — verify on a Windows machine with Excel (not Google Sheets)
+- [ ] **CSV export — period aware:** Exporting while "이번 주" is active exports only this week's rows, not all rows
+- [ ] **Excel export — auth protected:** `/api/export` Route Handler returns 401 for unauthenticated requests — verify by calling the endpoint without a session cookie
+- [ ] **Excel export — bundle neutral:** Lighthouse bundle analysis shows no new large chunks after adding the export feature — verify with `npm run build` output
+- [ ] **Sparkline — hydration clean:** Browser console shows zero hydration warnings after adding sparklines — verify in production build (`npm run build && npm start`)
+- [ ] **Sparkline — dark mode:** Sparklines show correctly colored lines in both light and dark mode — verify by toggling theme after page load
+- [ ] **Sparkline — zero width:** Sparklines render correctly on first load without window resize — verify in Firefox (stricter ResizeObserver timing) and in a narrow browser window
+
+---
 
 ## Recovery Strategies
 
@@ -226,13 +383,17 @@ When pitfalls occur despite prevention, how to recover.
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Column-index parsing breaks silently | LOW | Switch to header-name-based parsing. Only `lib/data.ts` parsers need changing. No component changes required if the TypeScript interface stays the same. |
-| Type migration leaves orphaned references | MEDIUM | Run `tsc --noEmit` to find all type errors. Fix each file. Harder if you allowed `any` casts to suppress errors -- those must be found by code review. |
-| Korean number formatting produces NaN | LOW | Add `parseKoreanNumber()` utility and replace all `Number()` calls in parsers. Isolated to `lib/data.ts`. |
-| Recharts colors invisible in dark mode | LOW | Create shared `CHART_COLORS` constant or `useChartColors()` hook. Update each chart component (5-10 min per chart). |
-| Period comparison wrong at month boundaries | MEDIUM | Extract comparison logic to `lib/period.ts`. Write failing unit tests for boundary cases first, then fix the logic. Components using the logic do not change -- only the utility function. |
-| Hardcoded ranges miss new data rows | LOW | Change range strings from `"A1:H30"` to `"A:H"` in `lib/data.ts`. One-line change per sheet. |
-| Mock data shown in production without indication | MEDIUM | Add `dataSource: "live" | "mock"` field to the data response. Surface it in the UI header. Requires touching the data layer and one UI component. |
+| Missing `period` in Suspense key | LOW | Add `period` to composite key string. One-line change in `page.tsx`. |
+| Client-side period filtering (wrong architecture) | MEDIUM | Extract filter logic to `lib/period-filter.ts` pure function. Move state from `useState` to `searchParams`. Convert Client Component consumers back to Server Components or prop-drilling pattern. Requires touching page.tsx, the filter component, and every component that consumed the client state. |
+| Week boundary wrong (Sunday instead of Monday) | LOW | Add `{ weekStartsOn: 1 }` to date-fns `startOfWeek` call. Write unit tests for the Monday case. |
+| MTD semantics wrong (full month vs elapsed days) | LOW | Rewrite the "지난 달" boundary calculation in `lib/period-filter.ts`. Isolated to one function, no component changes. |
+| Missing UTF-8 BOM in CSV export | LOW | Prepend `'\uFEFF'` to CSV string before Blob creation. One-line change. |
+| ExcelJS in client bundle | MEDIUM | Move to Route Handler pattern. Requires creating `app/api/export/route.ts`, changing the client export handler to a `fetch()` call, and testing the binary download. ~1-2 hours of rework. |
+| `xlsx` CVE discovered in `npm audit` | LOW | `npm uninstall xlsx`. Replace with `exceljs` or hand-rolled CSV. Route Handler approach unaffected. |
+| Sparkline hydration mismatch | LOW | Extract sparkline into a dedicated `"use client"` child component. Guard `resolvedTheme === undefined` in `getChartColors` call. Already the established pattern in the codebase. |
+| Sparkline renders at zero width | LOW | Add `minWidth` to `ResponsiveContainer`. Or switch to fixed-dimension SVG for sparklines. |
+
+---
 
 ## Pitfall-to-Phase Mapping
 
@@ -240,29 +401,37 @@ How roadmap phases should address these pitfalls.
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| Column-index parsing breaks | Phase 1: Type + Data Layer | Unit test: shuffle sheet columns, parser still extracts correct values by header name |
-| Type migration orphaned refs | Phase 1: Type + Data Layer | `tsc --noEmit` passes with zero errors. `grep -r "KpiData\|MonthlyRevenue\|CategoryDistribution\|RecentOrder" --include="*.ts" --include="*.tsx"` returns zero matches (except type definition file if renamed) |
-| Korean number formatting NaN | Phase 1: Type + Data Layer | Unit test: `parseKoreanNumber("₩1,234,567")` returns `1234567`. Test with actual Google Sheet cell values. |
-| Recharts dark mode colors | Phase 2: Chart Components | Manual test: toggle dark mode, all chart lines/bars/areas visible. Automated: snapshot test of chart SVG output with mocked theme |
-| Period comparison boundaries | Phase 2-3: KPI + Comparison Logic | Unit test: comparison on month boundaries (1st of month, last of month, Feb 28/29, Dec 31/Jan 1) |
-| Hardcoded sheet ranges | Phase 1: Data Layer | Code review: no hardcoded row numbers in `fetchSheetData()` calls. Sheet with 400 rows returns all 400. |
-| Mock data fallback invisible | Phase 3: Polish | UI test: disconnect Google Sheets credentials, verify dashboard shows "mock 데이터 사용 중" indicator |
-| Tab switch re-renders charts | Phase 2: Tabbed UI | Performance test: React DevTools Profiler shows chart components do not re-render on tab switch when their data has not changed |
-| Empty state crashes | Phase 2: Chart Components | Test: pass empty array to each chart component, verify graceful "데이터 없음" message |
+| Missing `period` in Suspense keys | Period filter phase | Switch periods: KPI skeleton must appear on each switch |
+| Client-side filtering architecture | Period filter phase — decide architecture first | No `useState` for data in any component consuming period filter |
+| Week boundary (Sunday vs. Monday) | Period filter phase — `lib/period-filter.ts` with unit tests | Unit test: `getWeekRange(monday)` includes `monday` as first day |
+| MTD misleading comparison | Period filter phase — document semantics, add tests | Unit test: on day 5, "이번 달" returns 5 records, "지난 달" returns 5 records of same period |
+| CSV BOM missing | Export phase — first CSV implementation | Manual test: open exported CSV in Excel on Windows, Korean headers readable |
+| ExcelJS client bundle bloat | Export phase — architecture decision before `npm install` | `npm run build` output shows no new chunks >50KB in client bundle |
+| SheetJS CVE | Export phase — library selection | `npm audit` shows zero HIGH or CRITICAL vulnerabilities |
+| Sparkline hydration mismatch | Sparkline phase — component boundary decision first | `npm run build && npm start`: zero hydration errors in browser console |
+| ResponsiveContainer zero width | Sparkline phase — test in narrow card before done | Sparkline visible on first page load in Firefox without resize |
+| Large dataset as sparkline props | Sparkline phase — slice data before passing | RSC payload in Network tab <50KB for full dashboard page |
+
+---
 
 ## Sources
 
-- Codebase analysis: `lib/data.ts` (lines 16-56 -- existing parser pattern with column-index access and `Number()` casting)
-- Codebase analysis: `lib/sheets.ts` (lines 34-48 -- `fetchSheetData` returns `string[][]`, no `valueRenderOption` specified)
-- Codebase analysis: `components/dashboard/category-chart.tsx` (lines 16-23 -- hardcoded HSL colors with comment about CSS variable SVG issues)
-- Codebase analysis: `components/dashboard/revenue-chart.tsx` (line 56 -- uses `var(--color-chart-1)` directly, inconsistent with category-chart approach)
-- Codebase analysis: `types/dashboard.ts` -- all four types that must be replaced
-- `.planning/codebase/CONCERNS.md` -- tech debt items on hardcoded ranges, implicit type coercion, error specificity
-- `.planning/PROJECT.md` -- daily/weekly sheet structure, period comparison requirements, tab switching requirements
-- Google Sheets API documentation (training data, MEDIUM confidence): `valueRenderOption` parameter controls number formatting in API responses
-- Recharts SVG rendering behavior (training data, MEDIUM confidence): CSS custom properties in SVG attributes have inconsistent browser support
-- JavaScript Date arithmetic pitfalls (training data, HIGH confidence): well-documented ecosystem-wide issue
+- Codebase analysis: `app/(dashboard)/dashboard/page.tsx` — existing Suspense key pattern (`key={activeTab}`) that must be extended
+- Codebase analysis: `components/dashboard/tab-nav.tsx` — URL searchParams preservation pattern to replicate for period selector
+- Codebase analysis: `components/dashboard/charts/revenue-trend-chart.tsx` — existing `useTheme` + `getChartColors` pattern for sparklines to follow
+- Codebase analysis: `components/dashboard/kpi-card.tsx` — Server Component structure that must be preserved when adding sparkline child
+- Codebase analysis: `types/dashboard.ts` — `DailyRecord.date` format `"YYYY-MM-DD"` confirms date-based filtering is feasible
+- Codebase analysis: `package.json` — no `date-fns`, `exceljs`, or `xlsx` currently installed; all are new additions
+- Official Next.js docs: [useSearchParams](https://nextjs.org/docs/app/api-reference/functions/use-search-params) — Suspense boundary requirements; layout vs. page searchParams behavior
+- Next.js GitHub Discussion #49540: searchParams causes server component to rerun — confirms server round-trip on param change is expected and correct
+- Next.js GitHub Discussion #88535: stale searchParams with Cache Components in Next.js 16 — `force-dynamic` already set in page.tsx mitigates this
+- [Korean CSV BOM article](https://hyunbinseo.medium.com/save-csv-file-in-utf-8-with-bom-29abf608e86e) — UTF-8 BOM requirement for Excel Korean compatibility (HIGH confidence, verified)
+- [Recharts ResponsiveContainer issues #172, #6716](https://github.com/recharts/recharts/issues/172) — zero-width rendering in constrained containers (HIGH confidence, multiple reports)
+- [ExcelJS bundlephobia](https://bundlephobia.com/package/exceljs) — ~1.08MB bundle size (HIGH confidence)
+- [SheetJS CVE](https://github.com/SheetJS/sheetjs/issues/694) — public npm registry package abandoned with known vulnerabilities (HIGH confidence)
+- date-fns docs: [startOfWeek](https://date-fns.org/docs/startOfWeek) — `weekStartsOn: 1` for Monday-start weeks (HIGH confidence)
+- Google Sheets API: [Quota limits](https://developers.google.com/workspace/sheets/api/limits) — 100 req/100s per user (HIGH confidence, official source)
 
 ---
-*Pitfalls research for: Korean sales dashboard (Next.js 16 + Google Sheets)*
-*Researched: 2026-02-21*
+*Pitfalls research for: v1.1 feature additions to Korean sales dashboard (기간 선택기, CSV/Excel 내보내기, KPI 스파크라인)*
+*Researched: 2026-02-27*

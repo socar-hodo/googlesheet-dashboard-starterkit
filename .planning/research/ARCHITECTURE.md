@@ -1,514 +1,560 @@
 # Architecture Research
 
-**Domain:** Team sales dashboard with dual data sources (Daily/Weekly Google Sheets)
-**Researched:** 2026-02-21
+**Domain:** Next.js 16 App Router dashboard — adding period filter, CSV export, and KPI sparklines to existing Server/Client component architecture
+**Researched:** 2026-02-27
 **Confidence:** HIGH
 
-## Standard Architecture
+---
 
-### System Overview
+## Context: Existing Architecture (v1.0)
+
+Understanding the current boundaries is essential before placing new features.
+
+### Data Flow (v1.0, established)
+
+```
+Google Sheets API
+    |
+    v
+lib/sheets.ts           -- fetchSheetData(range): string[][] | null
+    |
+    v
+lib/data.ts             -- getTeamDashboardData(): TeamDashboardData
+    |                      { daily: DailyRecord[], weekly: WeeklyRecord[], fetchedAt }
+    v
+app/(dashboard)/dashboard/page.tsx   -- Server Component (async)
+    |   reads searchParams.tab → 'daily' | 'weekly'
+    |   calls getTeamDashboardData() ONCE per page request (force-dynamic)
+    |   passes full data + activeTab as props downward
+    |
+    +---> KpiCards (Server Component)     -- computes KPI values from raw records
+    +---> ChartsSection (Server Component) -- slices/sorts records, passes to chart clients
+    |         +---> RevenueTrendChart (Client)
+    |         +---> ProfitTrendChart (Client)
+    |         +---> UtilizationTrendChart (Client)
+    |         +---> UsageTrendChart (Client)
+    +---> DataTable (Server Component)    -- renders HTML table from records
+    +---> TabNav (Client Component)       -- uses useSearchParams() to update URL
+    +---> UpdateTimestamp (Client Component)
+```
+
+### Server/Client Boundary (v1.0)
+
+| Layer | Server or Client | Why |
+|-------|-----------------|-----|
+| `page.tsx` | Server | async data fetch, searchParams |
+| `KpiCards` | Server | pure computation + render, no hooks |
+| `KpiCard` | Server | pure render |
+| `ChartsSection` | Server | data slicing/sorting, no hooks |
+| `RevenueTrendChart` | **Client** | Recharts requires DOM, `useTheme()` |
+| `ProfitTrendChart` | **Client** | Recharts + `useTheme()` |
+| `UtilizationTrendChart` | **Client** | Recharts + `useTheme()` |
+| `UsageTrendChart` | **Client** | Recharts + `useTheme()` |
+| `DataTable` | Server | pure render |
+| `TabNav` | **Client** | `useSearchParams()`, `useRouter()` |
+| `UpdateTimestamp` | **Client** | `useEffect` for relative time |
+
+---
+
+## Feature 1: 기간 선택기 (Period Filter Toggle)
+
+### What it does
+
+Four preset toggles: 이번 주 / 지난 주 / 이번 달 / 지난 달.
+Each filters `daily` records down to the matching date range before rendering.
+The `weekly` tab shows all data regardless (weekly records don't have ISO dates).
+
+### Architecture Decision: URL searchParam, client toggle, server filter
+
+Use the same pattern as the existing `tab` searchParam. Add a `period` searchParam to the URL. The Server Component reads `period` from searchParams and passes it to downstream components. Filtering happens in the Server Component (pure computation, no client state needed). The toggle UI is a Client Component (needs `useSearchParams` + `useRouter`).
+
+**Why not client-side state (useState)?**
+URL searchParams make the filter shareable and bookmarkable. The existing tab toggle already uses this pattern — consistency matters. Server-side filtering also means the DataTable and Charts always receive the already-filtered array, with no prop drilling of filter state to every component.
+
+**Why not a new API route?**
+The full dataset is already in memory on the server after `getTeamDashboardData()`. Filtering 30-90 records in JS is trivial. A fetch round-trip to an API route would add latency for no benefit.
+
+### Data Flow Change
+
+```
+URL: /dashboard?tab=daily&period=this-week
+
+page.tsx (Server)
+  reads: searchParams.tab, searchParams.period
+  calls: getTeamDashboardData()   (unchanged)
+  computes: filteredData = applyPeriodFilter(data, activeTab, period)
+  passes: filteredData + activeTab + period down to children
+
+KpiCards(filteredData, activeTab)   -- unchanged interface
+ChartsSection(filteredData, activeTab)  -- unchanged interface
+DataTable(filteredData, activeTab)  -- unchanged interface
+
+PeriodFilter (Client Component)    -- new, reads searchParams, updates URL
+```
+
+### New Component: `PeriodFilter`
+
+```
+components/dashboard/period-filter.tsx   "use client"
+```
+
+Props: `activePeriod: PeriodKey`, `tab: 'daily' | 'weekly'`
+
+Renders four `<button>` elements or a `<ToggleGroup>` (shadcn/ui). On click calls `router.replace()` updating `?period=` searchParam while preserving `?tab=`. For the `weekly` tab, renders nothing (or disabled state) since period filtering doesn't apply.
+
+### New Utility: `applyPeriodFilter` in `lib/data.ts`
+
+```typescript
+export type PeriodKey = 'this-week' | 'last-week' | 'this-month' | 'last-month' | 'all'
+
+export function applyPeriodFilter(
+  data: TeamDashboardData,
+  tab: 'daily' | 'weekly',
+  period: PeriodKey
+): TeamDashboardData
+```
+
+Pure function. Takes full data, returns a new `TeamDashboardData` with filtered `daily` array. The `weekly` array is returned unmodified regardless of period. The `fetchedAt` timestamp is preserved.
+
+Week/month boundaries are computed relative to `new Date()` at render time on the server. ISO date string comparison (`localeCompare`) works because `DailyRecord.date` is already normalized to `YYYY-MM-DD` by `ChartsSection.normalizeDate()`.
+
+**Important:** `normalizeDate()` currently lives in `charts-section.tsx`. For period filtering to work at the page level, this normalization must happen in `lib/data.ts` or be extracted to `lib/date-utils.ts` before filtering. The filter cannot operate on raw "2026. 2. 21" format strings reliably.
+
+### Modified Components
+
+| Component | Change |
+|-----------|--------|
+| `app/(dashboard)/dashboard/page.tsx` | Read `searchParams.period`, call `applyPeriodFilter`, pass `activePeriod` to `PeriodFilter` |
+| `lib/data.ts` | Add `applyPeriodFilter()`, `PeriodKey` type |
+| `components/dashboard/tab-nav.tsx` | May need to preserve `period` param when switching tabs (or reset to `all`) |
+
+### Placement in page.tsx
+
+```
+TabNav
+PeriodFilter     <-- new, below TabNav, hidden when tab=weekly
+UpdateTimestamp
+KpiCards
+ChartsSection
+DataTable
+```
+
+---
+
+## Feature 2: CSV/Excel 내보내기 (Export)
+
+### What it does
+
+A button that downloads the currently-visible table data as a `.csv` file. The "currently-visible" data means the records after period filter is applied, for the active tab.
+
+### Architecture Decision: Client-side CSV generation, no API route
+
+CSV generation from an array of objects is 5-10 lines of JS. The client already has the filtered data rendered in the DataTable. A browser download (URL.createObjectURL + `<a>` click) requires no server round-trip. There is no reason for an API route here.
+
+**Why not Excel (.xlsx)?** xlsx generation requires `exceljs` or `xlsx` package (~400KB+). The project out-of-scope excludes unnecessary dependencies. A properly-formed CSV opens in Excel without any library. Stick to CSV.
+
+**Why not a Server Action?** The data is already on the client as rendered HTML, but we need the structured records (not scraped HTML). The cleanest solution: pass the filtered records down to the export button as a serialized prop from the Server Component, and generate CSV purely client-side.
+
+### New Component: `ExportButton`
+
+```
+components/dashboard/export-button.tsx   "use client"
+```
+
+Props: `records: DailyRecord[] | WeeklyRecord[]`, `tab: 'daily' | 'weekly'`, `period: PeriodKey`
+
+The component generates CSV in-memory on click, creates a Blob, triggers download. No state is persisted. Filename format: `dashboard-{tab}-{period}-{YYYY-MM-DD}.csv`.
+
+```typescript
+// CSV generation (pure, no library needed)
+function toCsv(records: DailyRecord[] | WeeklyRecord[], tab: 'daily' | 'weekly'): string {
+  const headers = tab === 'daily'
+    ? ['날짜', '매출', '손익', '이용시간', '이용건수', '가동률']
+    : ['주차', '매출', '손익', '이용시간', '이용건수', '가동률', '목표'];
+  const rows = records.map(r => /* field mapping */);
+  return [headers, ...rows].map(row => row.join(',')).join('\n');
+}
+```
+
+### Data Flow
+
+```
+page.tsx (Server)
+  filteredData passed to DataTable AND to ExportButton as props
+
+ExportButton (Client)
+  onClick: generates CSV blob → downloads
+  no fetch, no API, no state
+```
+
+### Placement
+
+Export button sits in the DataTable card header, right-aligned. The `DataTable` server component accepts `exportRecords` prop (the same records it renders) and renders `<ExportButton>` inline. Alternatively, place `ExportButton` in `page.tsx` above the DataTable — simpler prop threading. Recommended: in `page.tsx` in a flex row with the period filter.
+
+### Modified Components
+
+| Component | Change |
+|-----------|--------|
+| `app/(dashboard)/dashboard/page.tsx` | Pass `filteredData.daily` or `filteredData.weekly` to `ExportButton` based on active tab |
+
+---
+
+## Feature 3: KPI 스파크라인 (KPI Sparklines)
+
+### What it does
+
+A tiny mini-chart (sparkline) inside each KPI card showing the trend of that metric over recent periods. No axes, no labels — just the shape of the trend line.
+
+### Architecture Decision: Recharts `LineChart` or SVG path, rendered in Client Component
+
+The existing `KpiCard` is a Server Component. It cannot use Recharts (which requires `useTheme()` and DOM). Two options:
+
+**Option A:** Keep `KpiCard` as Server Component, add a new `Sparkline` Client Component as a child.
+**Option B:** Convert `KpiCard` to Client Component.
+
+Recommendation: **Option A.** Keep `KpiCard` server-rendered. Add a `SparklineChart` Client Component that receives a `number[]` array of values and renders a tiny `<LineChart>`. This maintains the Server boundary for everything in `KpiCard` except the sparkline itself.
+
+Recharts `<LineChart>` for a sparkline with `width={120} height={40}` and no axes works cleanly. The `SparklineChart` props are:
+
+```typescript
+interface SparklineChartProps {
+  data: number[];       // the metric values in chronological order
+  positive?: boolean;   // drives color: green if true, red if false, neutral if undefined
+}
+```
+
+### Data Flow Change
+
+The sparkline needs the last N data points for each metric. The `KpiCards` server component already has access to the full `data.daily` and `data.weekly` arrays. It needs to extract the trend series before passing to `KpiCard`.
+
+```
+KpiCards (Server Component)
+  for each KPI metric:
+    extracts trendValues: number[] (last 7 daily or last 4 weekly)
+    passes trendValues to KpiCard as prop
+
+KpiCard (Server Component)
+  renders SparklineChart (Client Component) with trendValues
+
+SparklineChart (Client Component)
+  useTheme() for color
+  renders tiny LineChart
+```
+
+### Modified Components
+
+| Component | Change |
+|-----------|--------|
+| `components/dashboard/kpi-card.tsx` | Add optional `sparklineData?: number[]` prop, render `<SparklineChart>` |
+| `components/dashboard/kpi-cards.tsx` | Extract trend series for each KPI before building card definitions |
+
+### New Component: `SparklineChart`
+
+```
+components/dashboard/sparkline-chart.tsx   "use client"
+```
+
+Uses Recharts `LineChart` (already in `recharts` dependency). No new package needed.
+
+```typescript
+"use client";
+import { LineChart, Line, ResponsiveContainer } from "recharts";
+import { useTheme } from "next-themes";
+
+interface SparklineChartProps {
+  data: number[];
+  trend: 'up' | 'down' | 'neutral';
+}
+
+export function SparklineChart({ data, trend }: SparklineChartProps) {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+  const color = trend === 'up'
+    ? (isDark ? '#4ade80' : '#16a34a')    // green-400/600
+    : trend === 'down'
+    ? (isDark ? '#f87171' : '#dc2626')    // red-400/600
+    : (isDark ? '#a1a1aa' : '#71717a');   // zinc-400/500
+  const chartData = data.map((v) => ({ v }));
+  return (
+    <ResponsiveContainer width="100%" height={36}>
+      <LineChart data={chartData} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
+        <Line type="monotone" dataKey="v" stroke={color} strokeWidth={1.5} dot={false} />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+```
+
+Colors reuse the same palette already defined in `chart-colors.ts`.
+
+### Sparkline Data Extraction (in `kpi-cards.tsx`)
+
+For Daily tab: take the last 14 `DailyRecord` entries, extract the relevant field.
+For Weekly tab: take all `WeeklyRecord` entries (typically 4-8 weeks).
+
+The trend direction (`'up' | 'down' | 'neutral'`) is determined by comparing first and last value in the sparkline series. Consistent with the existing `calcDelta()` logic in `lib/kpi-utils.ts`.
+
+---
+
+## Combined System Overview (v1.1)
 
 ```
 +-----------------------------------------------------------------------+
 |                        Browser (Client)                                |
-|  +-------------------+  +-------------------+  +-------------------+  |
-|  | TabSwitcher       |  | KPI Cards (x4)    |  | Recharts Charts   |  |
-|  | (Client Component)|  | (Server Component)|  | (Client Component)|  |
-|  +--------+----------+  +-------------------+  +-------------------+  |
-|           | tab=daily|weekly (searchParams)                            |
-+-----------+-----------------------------------------------------------+
-            | Full page navigation (soft nav)
+|                                                                        |
+|  TabNav (Client)   PeriodFilter (Client NEW)   ExportButton (Client NEW)|
+|                                                                        |
+|  KpiCards (Server)                                                     |
+|    KpiCard (Server) x5                                                 |
+|      SparklineChart (Client NEW)  <-- nested client in server          |
+|                                                                        |
+|  ChartsSection (Server)                                                |
+|    RevenueTrendChart (Client)                                           |
+|    ProfitTrendChart (Client)                                            |
+|    UtilizationTrendChart (Client)                                       |
+|    UsageTrendChart (Client)                                             |
+|                                                                        |
+|  DataTable (Server)                                                    |
++----------|------------------------------------------------------------+
+           | URL: /dashboard?tab=daily&period=this-week
 +-----------v-----------------------------------------------------------+
-|                   Dashboard Page (Server Component)                    |
-|  reads searchParams.tab --> decides which data to fetch                |
-|  +-----------------------------+  +-----------------------------+     |
-|  | getTeamDashboardData("daily")|  | getTeamDashboardData("weekly")|  |
-|  +-------------+---------------+  +-------------+---------------+     |
-|                |                                |                     |
-+----------------+--------------------------------+---------------------+
-                 |                                |
-+----------------v--------------------------------v---------------------+
-|                     Data Integration Layer (lib/data.ts)               |
-|  +-------------------+      +--------------------+                    |
-|  | parseDailySheet() |      | parseWeeklySheet() |                    |
-|  +--------+----------+      +---------+----------+                    |
-|           |                           |                               |
-+-----------|---------------------------+-------------------------------+
-            |                           |
-+-----------v---------------------------v-------------------------------+
-|                     Google Sheets API (lib/sheets.ts)                  |
-|  fetchSheetData("daily!A:G")    fetchSheetData("weekly!A:F")          |
-+-----------+---------------------------+-------------------------------+
-            |                           |
-+-----------v---------------------------v-------------------------------+
-|                     Google Sheets Spreadsheet                          |
-|  +------------------+  +-------------------+                          |
-|  | "daily" sheet    |  | "weekly" sheet    |                          |
-|  | date|rev|profit  |  | week|rev|profit   |                          |
-|  | |hours|count|    |  | |hours|count|     |                          |
-|  | utiliz|target    |  | utiliz              |                         |
-|  +------------------+  +-------------------+                          |
+|           Dashboard Page (Server Component — page.tsx)                 |
+|                                                                        |
+|   1. await searchParams  → { tab, period }                            |
+|   2. getTeamDashboardData()           (unchanged)                     |
+|   3. applyPeriodFilter(data, tab, period)   (NEW in lib/data.ts)      |
+|   4. render with filteredData                                          |
++-----------------------------------------------------------------------+
+           |
++-----------v-----------------------------------------------------------+
+|  lib/data.ts  getTeamDashboardData()  applyPeriodFilter()             |
+|  lib/sheets.ts  fetchSheetData()                                      |
+|  lib/date-utils.ts  (NEW — extracted normalizeDate, period boundaries)|
++-----------------------------------------------------------------------+
+           |
++-----------v-----------------------------------------------------------+
+|  Google Sheets API → "일별" sheet + "주차별" sheet                     |
 +-----------------------------------------------------------------------+
 ```
 
-### Component Responsibilities
+---
 
-| Component | Responsibility | Typical Implementation |
-|-----------|----------------|------------------------|
-| `types/dashboard.ts` | Define DailyRecord, WeeklyRecord, TeamKpi, TeamDashboardData types | Pure TypeScript interfaces, no runtime code |
-| `lib/sheets.ts` | Google Sheets API wrapper with JWT auth | Unchanged from current -- `fetchSheetData(range)` returns `string[][]` |
-| `lib/data.ts` | Parse sheet rows into typed records, compute KPIs, apply fallback | New `getTeamDashboardData(tab)` replaces old `getDashboardData()` |
-| `lib/mock-data.ts` | Provide mock DailyRecord[] and WeeklyRecord[] for development | Matches new type structure |
-| `app/(dashboard)/dashboard/page.tsx` | Server Component that reads `searchParams.tab`, fetches correct data, renders | Async function with searchParams prop |
-| `components/dashboard/tab-switcher.tsx` | Client Component for Daily/Weekly tab UI | Uses `<Link>` with searchParams to avoid client state |
-| `components/dashboard/kpi-cards.tsx` | Display 4 KPI cards with target vs actual + trend | Server Component, receives computed KPI data |
-| `components/dashboard/trend-chart.tsx` | Recharts line chart showing actual vs target over time | Client Component, receives array data |
-| `components/dashboard/profit-chart.tsx` | Recharts bar/area chart for profit trend | Client Component |
-| `components/dashboard/utilization-chart.tsx` | Recharts chart for utilization rate visualization | Client Component |
+## Component Map: New vs Modified
 
-## Recommended Project Structure
+### New Files
 
-```
-types/
-  dashboard.ts              # NEW: DailyRecord, WeeklyRecord, TeamKpi, TeamDashboardData
-                            # (replaces old KpiData, MonthlyRevenue, etc.)
+| File | Type | Purpose |
+|------|------|---------|
+| `components/dashboard/period-filter.tsx` | Client Component | 이번 주/지난 주/이번 달/지난 달 toggle buttons, updates `?period=` searchParam |
+| `components/dashboard/export-button.tsx` | Client Component | CSV generation + browser download, receives `records[]` as prop |
+| `components/dashboard/sparkline-chart.tsx` | Client Component | Tiny 36px-tall Recharts LineChart, no axes, color-coded by trend |
+| `lib/date-utils.ts` | Pure TS | `normalizeDate()` (extracted from charts-section), `getPeriodDateRange()`, `applyPeriodFilter()` — or merge into `lib/data.ts` |
 
-lib/
-  sheets.ts                 # UNCHANGED: fetchSheetData(range), isGoogleSheetsConfigured()
-  data.ts                   # REWRITE: getTeamDashboardData(tab), parseDailySheet(), parseWeeklySheet(), computeKpis()
-  mock-data.ts              # REWRITE: mockDailyRecords, mockWeeklyRecords, mockTeamDashboardData
-  utils.ts                  # UNCHANGED: cn() utility
+### Modified Files
 
-app/(dashboard)/dashboard/
-  page.tsx                  # REWRITE: reads searchParams.tab, fetches per-tab data
+| File | Change | Scope |
+|------|--------|-------|
+| `app/(dashboard)/dashboard/page.tsx` | Read `period` from searchParams; call `applyPeriodFilter`; pass `activePeriod` to `PeriodFilter` and `ExportButton` | ~10 lines added |
+| `lib/data.ts` | Add `PeriodKey` type, `applyPeriodFilter()` function | ~40 lines added |
+| `components/dashboard/kpi-card.tsx` | Add `sparklineData?: number[]` prop; render `<SparklineChart>` in card footer | ~10 lines added |
+| `components/dashboard/kpi-cards.tsx` | Extract trend series per KPI metric; pass to `KpiCard` as `sparklineData` | ~20 lines added per card |
+| `components/dashboard/charts/charts-section.tsx` | Remove local `normalizeDate()` if extracted to `lib/date-utils.ts`; import instead | ~5 lines changed |
 
-components/dashboard/
-  tab-switcher.tsx          # NEW: Client Component -- Daily/Weekly tabs using Link + searchParams
-  kpi-cards.tsx             # REWRITE: target vs actual KPI cards with achievement rate
-  trend-chart.tsx           # NEW: actual vs target line chart (replaces revenue-chart.tsx)
-  profit-chart.tsx          # NEW: profit trend visualization
-  utilization-chart.tsx     # NEW: utilization rate chart
-  period-comparison.tsx     # NEW: comparison widget (this week vs last week, etc.)
-
-components/dashboard/        # TO REMOVE after migration
-  revenue-chart.tsx          # replaced by trend-chart.tsx
-  category-chart.tsx         # no longer needed (no category distribution in team data)
-  recent-orders-table.tsx    # no longer needed (no orders in team data)
-```
-
-### Structure Rationale
-
-- **types/dashboard.ts:** Single file for all types because the team dashboard is a single domain. No need for per-feature type files.
-- **lib/data.ts as integration layer:** Keeps the existing 3-tier pattern (sheets -> data -> mock) but replaces the parsing functions and main export. This is the correct seam for the rewrite.
-- **components/dashboard/:** One component per visual concern. Each chart is its own Client Component because Recharts requires DOM. Tab switcher is Client for interactivity but uses Link-based navigation, not local state.
-- **No new routes:** The constraint is "single page, tab switching." This is achieved via searchParams, not route groups.
+---
 
 ## Architectural Patterns
 
-### Pattern 1: SearchParams-Driven Tab Switching (Server-First)
+### Pattern 1: URL-as-State for Filter Controls
 
-**What:** Use URL searchParams (`?tab=daily` / `?tab=weekly`) to control which data the Server Component fetches. The tab switcher renders `<Link>` elements that change the searchParam. Next.js App Router treats this as a soft navigation that re-renders the Server Component without a full page reload.
+**What:** Filter state (period) lives in the URL as a searchParam, not in React state.
+**When to use:** Any filter that should be shareable, bookmarkable, or that causes a server-side data re-computation.
+**Trade-offs:** Causes a full server re-render on filter change (soft navigation). For a dashboard with ~90 records, this is under 100ms. For a dataset requiring expensive DB queries, consider client-side filtering.
 
-**When to use:** When each tab requires different server-side data fetching and you want the tab state to be URL-shareable and back-button friendly.
+The existing `tab` searchParam establishes this pattern. `period` follows identically.
 
-**Trade-offs:**
-- Pro: Tab state is in the URL (shareable, bookmarkable, back-button works)
-- Pro: Server Component re-executes on tab change, so data is always fresh
-- Pro: No client-side state management for data, no useEffect/fetch
-- Con: Soft navigation adds ~100-200ms round-trip vs instant client tab switch
-- Verdict: For a dashboard that fetches fresh data on every view, the server round-trip is the point, not a cost
+### Pattern 2: Server Component as Data Transformer, Client Component as Leaf
 
-**Example:**
-```typescript
-// app/(dashboard)/dashboard/page.tsx
-interface DashboardPageProps {
-  searchParams: Promise<{ tab?: string }>;
-}
+**What:** Server Components receive raw data, transform/slice it, and pass serializable props (plain objects, number arrays) to Client Components at the leaf of the tree.
+**When to use:** When Recharts or other browser-only libraries are needed but the computation is pure.
+**Trade-offs:** Props must be serializable (no functions, no React elements across the Server/Client boundary).
 
-export default async function DashboardPage({ searchParams }: DashboardPageProps) {
-  const params = await searchParams;
-  const activeTab = params.tab === "weekly" ? "weekly" : "daily";
-  const data = await getTeamDashboardData(activeTab);
+`ChartsSection` (Server) slices records → passes `DailyRecord[]` to `RevenueTrendChart` (Client). The same pattern applies to `SparklineChart`: `KpiCards` (Server) extracts `number[]` → passes to `SparklineChart` (Client).
 
-  return (
-    <div className="space-y-6">
-      <TabSwitcher activeTab={activeTab} />
-      <KpiCards kpis={data.kpis} />
-      <div className="grid gap-6 lg:grid-cols-7">
-        <div className="lg:col-span-4">
-          <TrendChart data={data.records} type={activeTab} />
-        </div>
-        <div className="lg:col-span-3">
-          <UtilizationChart data={data.records} />
-        </div>
-      </div>
-      <ProfitChart data={data.records} />
-      <PeriodComparison current={data.currentPeriod} previous={data.previousPeriod} />
-    </div>
-  );
-}
-```
+### Pattern 3: Inline Client Islands in Server Component Trees
 
-```typescript
-// components/dashboard/tab-switcher.tsx
-"use client";
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+**What:** A Server Component renders a Client Component as a direct child, passing serializable props. React handles the hydration boundary automatically.
+**When to use:** When a small interactive/browser-dependent piece is needed inside an otherwise server-rendered component.
+**Trade-offs:** The Client Component subtree is hydrated separately. No shared state between the server shell and client island without a context provider.
 
-export function TabSwitcher({ activeTab }: { activeTab: "daily" | "weekly" }) {
-  return (
-    <div className="flex gap-1 rounded-lg bg-muted p-1">
-      <Link
-        href="/dashboard?tab=daily"
-        className={cn(
-          "rounded-md px-4 py-2 text-sm font-medium transition-colors",
-          activeTab === "daily" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
-        )}
-      >
-        일별 현황
-      </Link>
-      <Link
-        href="/dashboard?tab=weekly"
-        className={cn(
-          "rounded-md px-4 py-2 text-sm font-medium transition-colors",
-          activeTab === "weekly" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
-        )}
-      >
-        주차별 현황
-      </Link>
-    </div>
-  );
-}
-```
+`KpiCard` (Server) contains `SparklineChart` (Client). This is valid Next.js App Router behavior — you can import a Client Component from a Server Component; you cannot import a Server Component from inside a Client Component.
 
-**Note on Next.js 16 searchParams:** In Next.js 15+, `searchParams` in page props is a Promise that must be awaited. This is confirmed by the existing codebase running Next.js 16.1.6. Confidence: HIGH (derived from codebase version + official Next.js 15 migration docs pattern).
+### Pattern 4: Pure Client-Side CSV Generation
 
-### Pattern 2: Unified Data Fetching with Tab Dispatch
+**What:** Build CSV string from an array, create a `Blob`, trigger `<a>` download in-memory. No server involvement.
+**When to use:** When the data is already on the client and the export format is simple.
+**Trade-offs:** Large datasets (100K+ rows) can freeze the main thread. For this dashboard (~90 records max), it's instantaneous.
 
-**What:** A single exported function `getTeamDashboardData(tab)` that dispatches to the correct sheet parser based on the active tab. This preserves the existing pattern of one data-fetching entry point while supporting two data sources.
+---
 
-**When to use:** When multiple data sources feed the same UI structure and you want a clean API boundary.
+## Data Flow for Each Feature
 
-**Trade-offs:**
-- Pro: Page component has one call site regardless of tab
-- Pro: Fallback logic stays centralized
-- Pro: Easy to test in isolation
-- Con: Both tabs share the same return type, which forces a union or generic approach
-
-**Example:**
-```typescript
-// lib/data.ts
-export async function getTeamDashboardData(
-  tab: "daily" | "weekly"
-): Promise<TeamDashboardData> {
-  if (!isGoogleSheetsConfigured()) {
-    return tab === "daily" ? mockDailyDashboardData : mockWeeklyDashboardData;
-  }
-
-  try {
-    if (tab === "daily") {
-      const rows = await fetchSheetData("daily!A1:G100");
-      const records = rows ? parseDailySheet(rows) : mockDailyRecords;
-      return buildDashboardData(records, "daily");
-    } else {
-      const rows = await fetchSheetData("weekly!A1:F100");
-      const records = rows ? parseWeeklySheet(rows) : mockWeeklyRecords;
-      return buildDashboardData(records, "weekly");
-    }
-  } catch (error) {
-    console.error(`${tab} 시트 데이터 가져오기 실패:`, error);
-    return tab === "daily" ? mockDailyDashboardData : mockWeeklyDashboardData;
-  }
-}
-```
-
-### Pattern 3: Computed KPIs from Records (Not Separate Sheet)
-
-**What:** Instead of storing KPIs in a separate sheet range, compute them from the raw daily/weekly records. The latest record's values become "current," the previous period is calculated from the record set, and target comparison comes from the target column in the daily sheet.
-
-**When to use:** When KPIs are derivable from the detail data and you want a single source of truth.
-
-**Trade-offs:**
-- Pro: No separate KPI sheet to maintain, no sync issues
-- Pro: KPIs always match the underlying data
-- Con: Slightly more computation server-side (trivial for <365 rows)
-- Verdict: Correct approach for this use case. The daily sheet has a target column, so all needed info is in the records.
-
-**Example:**
-```typescript
-// lib/data.ts
-function computeKpisFromRecords(
-  records: DailyRecord[] | WeeklyRecord[],
-  type: "daily" | "weekly"
-): TeamKpi[] {
-  const latest = records[records.length - 1];
-  const previous = records[records.length - 2];
-
-  if (!latest) return getDefaultKpis();
-
-  const revenueChange = previous
-    ? ((latest.revenue - previous.revenue) / previous.revenue) * 100
-    : 0;
-
-  return [
-    {
-      label: "매출",
-      value: latest.revenue,
-      target: type === "daily" ? (latest as DailyRecord).monthlyTarget : undefined,
-      change: revenueChange,
-      format: "currency",
-    },
-    {
-      label: "손익",
-      value: latest.profit,
-      change: previous ? ((latest.profit - previous.profit) / Math.abs(previous.profit)) * 100 : 0,
-      format: "currency",
-    },
-    {
-      label: "가동률",
-      value: latest.utilizationRate,
-      format: "percent",
-    },
-    {
-      label: "이용건수",
-      value: latest.usageCount,
-      change: previous ? ((latest.usageCount - previous.usageCount) / previous.usageCount) * 100 : 0,
-      format: "number",
-    },
-  ];
-}
-```
-
-## Data Flow
-
-### Request Flow (Tab Switch)
+### Period Filter Flow
 
 ```
-User clicks "주차별 현황" tab
+User clicks "이번 주"
     |
-    v
-<Link href="/dashboard?tab=weekly"> triggers soft navigation
+PeriodFilter.tsx (Client)
+    router.replace('/dashboard?tab=daily&period=this-week', { scroll: false })
     |
-    v
-Next.js App Router re-renders Server Component (no full page reload)
+Next.js soft navigation → page.tsx re-executes on server
     |
-    v
-DashboardPage({ searchParams }) -- awaits searchParams
+page.tsx reads: tab='daily', period='this-week'
+getTeamDashboardData()  →  full data (all records)
+applyPeriodFilter(data, 'daily', 'this-week')  →  filtered to current week only
     |
-    v
-params.tab === "weekly" --> getTeamDashboardData("weekly")
-    |
-    v
-fetchSheetData("weekly!A1:F100") -- Google Sheets API call
-    |
-    v
-parseWeeklySheet(rows) -- transform string[][] to WeeklyRecord[]
-    |
-    v
-buildDashboardData(records, "weekly") -- compute KPIs, prepare chart data
-    |
-    v
-TeamDashboardData returned to page
-    |
-    v
-Page renders: TabSwitcher + KpiCards + Charts + PeriodComparison
-    |
-    v
-Client Components hydrate (Recharts renders SVG, TabSwitcher highlights active)
+KpiCards(filteredData)   -- KPIs reflect this-week only
+ChartsSection(filteredData)  -- charts show this-week only
+DataTable(filteredData)  -- table shows this-week only
+ExportButton(filteredData.daily)  -- export is this-week only
 ```
 
-### Key Data Flows
-
-1. **Initial Page Load (daily default):** Browser -> `/dashboard` (no searchParams) -> Server Component defaults to `tab=daily` -> fetches daily sheet -> renders full dashboard
-2. **Tab Switch:** Click weekly tab -> soft nav to `/dashboard?tab=weekly` -> Server Component re-executes with new searchParams -> fetches weekly sheet -> renders dashboard with weekly data
-3. **Refresh/Share:** URL contains `?tab=weekly` -> landing on the page fetches weekly immediately. URL is the source of truth for which tab is active.
-
-### State Management
-
-- **Tab state:** URL searchParams (not React state). This is intentional -- the tab determines what data to fetch server-side.
-- **Session:** NextAuth JWT via `useSession()` (unchanged)
-- **Theme:** next-themes `useTheme()` (unchanged)
-- **Sidebar:** Local `useState` (unchanged)
-- **No global state library needed:** All data flows top-down from the Server Component. No shared mutable state across components.
-
-## Type Structure
-
-### New Types (replace all existing types in `types/dashboard.ts`)
-
-```typescript
-// types/dashboard.ts
-
-/** 일별 레코드 -- daily 시트의 한 행 */
-export interface DailyRecord {
-  date: string;             // "2026-02-21" (YYYY-MM-DD)
-  revenue: number;          // 매출 (원)
-  profit: number;           // 손익 (원)
-  usageHours: number;       // 이용시간 (시간)
-  usageCount: number;       // 이용건수
-  utilizationRate: number;  // 가동률 (%, 0-100)
-  monthlyTarget: number;    // 매월 목표 매출 (원)
-}
-
-/** 주차별 레코드 -- weekly 시트의 한 행 */
-export interface WeeklyRecord {
-  week: string;             // "2026-W08" 또는 "2월 3주차" (시트 형식에 따름)
-  revenue: number;          // 매출 (원)
-  profit: number;           // 손익 (원)
-  usageHours: number;       // 이용시간 (시간)
-  usageCount: number;       // 이용건수
-  utilizationRate: number;  // 가동률 (%, 0-100)
-}
-
-/** KPI 카드 하나의 데이터 */
-export interface TeamKpi {
-  label: string;            // "매출", "손익", "가동률", "이용건수"
-  value: number;            // 현재 값
-  target?: number;          // 목표 값 (있으면 달성률 표시)
-  change?: number;          // 전기 대비 변동률 (%)
-  format: "currency" | "percent" | "number" | "hours";  // 표시 형식
-}
-
-/** 기간 비교 데이터 */
-export interface PeriodComparison {
-  label: string;            // "이번 주 vs 지난 주" 등
-  current: number;
-  previous: number;
-  changePercent: number;
-}
-
-/** 대시보드 전체 데이터 (탭 공통 구조) */
-export interface TeamDashboardData {
-  tab: "daily" | "weekly";
-  records: DailyRecord[] | WeeklyRecord[];
-  kpis: TeamKpi[];
-  periodComparisons: PeriodComparison[];
-}
-```
-
-### Type Migration Strategy
-
-The old types (`KpiData`, `MonthlyRevenue`, `CategoryDistribution`, `RecentOrder`, `DashboardData`) should be **deleted entirely, not deprecated**. Rationale:
-
-1. The old types represent a generic e-commerce starter kit (orders, categories, monthly revenue). None of these concepts exist in the team sales domain.
-2. No gradual migration is possible -- the data shapes are fundamentally different.
-3. TypeScript will surface every broken import immediately at build time, making the migration mechanical.
-
-**Migration order:**
-1. Write new types in `types/dashboard.ts` (overwrite file)
-2. Rewrite `lib/mock-data.ts` to match new types
-3. Rewrite `lib/data.ts` parsers and main export
-4. Rewrite `app/(dashboard)/dashboard/page.tsx` to use new data shape
-5. Create new components, delete old ones
-6. Run `npm run build` -- TypeScript will catch any remaining references
-
-## Build Order (Dependencies Between Components)
-
-The components have a strict dependency chain. Build in this order:
+### Export Flow
 
 ```
-Phase 1: Foundation (no UI changes, everything compiles)
-  1. types/dashboard.ts       -- new types (DailyRecord, WeeklyRecord, TeamKpi, TeamDashboardData)
-  2. lib/mock-data.ts          -- mock data matching new types
-  3. lib/data.ts               -- new parsers + getTeamDashboardData()
-     (At this point, the old page.tsx will have type errors -- expected)
-
-Phase 2: Page + Tab Shell (dashboard renders, tabs work)
-  4. components/dashboard/tab-switcher.tsx   -- Daily/Weekly tab UI
-  5. app/(dashboard)/dashboard/page.tsx      -- rewrite to use searchParams + new data
-  6. components/dashboard/kpi-cards.tsx       -- rewrite for TeamKpi[] with target/achievement
-
-Phase 3: Charts (visual data display)
-  7. components/dashboard/trend-chart.tsx         -- actual vs target line chart
-  8. components/dashboard/profit-chart.tsx         -- profit trend
-  9. components/dashboard/utilization-chart.tsx    -- utilization rate
-
-Phase 4: Comparison + Cleanup
-  10. components/dashboard/period-comparison.tsx   -- period-over-period comparison
-  11. Delete: revenue-chart.tsx, category-chart.tsx, recent-orders-table.tsx
+User clicks "CSV 내보내기"
+    |
+ExportButton.tsx (Client)
+    toCsv(records, tab)  →  CSV string
+    new Blob([csvString], { type: 'text/csv;charset=utf-8;' })
+    URL.createObjectURL(blob)
+    <a href=...>.click()
+    URL.revokeObjectURL(...)
+    |
+Browser downloads: "dashboard-daily-this-week-2026-02-27.csv"
 ```
 
-**Why this order:**
-- Types must exist before anything can import them
-- Mock data must exist before `data.ts` can reference it for fallback
-- `data.ts` must export `getTeamDashboardData` before the page can call it
-- The page must render before individual chart components matter
-- KPI cards are simpler than charts (Server Component, no Recharts), so they come first
-- Charts are independent of each other, so phases 3's items could be parallelized
-- Cleanup comes last to avoid broken imports during development
+### Sparkline Flow
 
-## Scaling Considerations
+```
+page.tsx
+    data = getTeamDashboardData()
+    filteredData = applyPeriodFilter(data, tab, period)
+    |
+KpiCards(filteredData, tab)  [Server Component]
+    sorted = [...filteredData.daily].sort(...)
+    trendRevenue = sorted.map(r => r.revenue)  // number[]
+    |
+KpiCard(sparklineData=trendRevenue, ...)  [Server Component]
+    |
+SparklineChart(data=trendRevenue, trend='up')  [Client Component]
+    useTheme()  →  color
+    renders 36px LineChart
+```
 
-| Scale | Architecture Adjustments |
-|-------|--------------------------|
-| 1-10 users (current) | Direct Google Sheets API on each page load. No caching. This is fine -- the team is small and Sheets API has generous quotas. |
-| 10-50 users | Add `revalidate` export to the page or use `unstable_cache` in `data.ts` with a 60-second TTL. Prevents hammering Sheets API if multiple users refresh simultaneously. |
-| 50+ users | Unlikely for a team dashboard. If needed, add a lightweight caching layer (Redis or even in-memory Map with TTL) in front of the Sheets API call. |
+---
 
-### Scaling Priorities
+## Build Order (Recommended)
 
-1. **First bottleneck: Google Sheets API rate limits.** The Sheets API allows 60 requests per minute per project per user (service account). With 10+ users refreshing frequently, add `unstable_cache` with 30-60s revalidation.
-2. **Second bottleneck: Server Component render time.** If sheets grow to thousands of rows, parsing becomes slow. Limit the fetch range (e.g., last 90 days for daily, last 26 weeks for weekly) rather than fetching everything.
+**1 — Extract `normalizeDate` to `lib/date-utils.ts`**
+This unblocks both period filtering (needs date normalization) and removes duplication from `charts-section.tsx`. Zero user-visible change.
+
+**2 — Add `applyPeriodFilter` to `lib/data.ts` + `PeriodKey` type**
+Pure function, fully testable. No component changes yet.
+
+**3 — Wire `period` searchParam in `page.tsx`**
+Read the param, call `applyPeriodFilter`, pass `activePeriod` down. All downstream components already accept `filteredData` through existing props — no interface changes needed.
+
+**4 — Build `PeriodFilter` Client Component**
+Now the filter param has meaning in the server; build the UI to set it. Test that tab switching preserves or resets the period param (decide: reset to `all` on tab switch is simpler and less surprising).
+
+**5 — Build `SparklineChart` Client Component**
+Standalone, pure visual component. Easy to develop in isolation.
+
+**6 — Update `KpiCard` and `KpiCards` for sparklines**
+Thread `sparklineData` through the existing server component chain. No architecture changes, just prop additions.
+
+**7 — Build `ExportButton` Client Component**
+Last because it depends on the filtered data being correctly wired (Step 3). Tests: correct filename, correct headers, correct row count.
+
+**Rationale for this order:**
+- Steps 1-2 are pure logic with no UI, lowest risk.
+- Steps 3-4 (period filter) are the highest-value feature and must land before export (export must export filtered data).
+- Steps 5-6 (sparklines) are independent of filter and can be parallelized with Step 4.
+- Step 7 (export) requires filter wiring to be complete.
+
+---
 
 ## Anti-Patterns
 
-### Anti-Pattern 1: Client-Side Tab State with useEffect Fetching
+### Anti-Pattern 1: Client-Side Period Filtering with useState
 
-**What people do:** Use `useState` for the active tab and `useEffect` + `fetch` to call an API route that returns dashboard data. Each tab switch triggers a client-side fetch.
+**What people do:** Store `period` in a `useState` inside a Client Component wrapper around the dashboard, filter data on the client.
+**Why it's wrong:** Breaks the Server Component architecture. The entire dashboard must become a Client Component or a complex provider is needed. Data is no longer fetched fresh per filter change — you load all records upfront and filter in browser memory.
+**Do this instead:** URL searchParam + server-side filter. Consistent with existing `tab` pattern.
 
-**Why it's wrong:** This throws away the Server Component advantage. You end up maintaining an API route (`/api/dashboard?tab=daily`) that duplicates the data-fetching logic, and the initial page load requires a client round-trip after hydration. It also breaks the "data on first paint" guarantee.
+### Anti-Pattern 2: Converting `KpiCard` to Client Component for Sparklines
 
-**Do this instead:** Use searchParams to drive Server Component re-execution. The data arrives with the HTML, no client-side fetch needed. See Pattern 1 above.
+**What people do:** Add `"use client"` to `KpiCard` to use Recharts directly.
+**Why it's wrong:** `KpiCard` becomes a Client Component, which means its parent `KpiCards` also cannot be a Server Component (all ancestors of a client-imported component become part of the client bundle when the import chain reaches a server component).
+**Do this instead:** Keep `KpiCard` as Server Component. Add a child `SparklineChart` Client Component. React allows Client Components as children of Server Components.
 
-### Anti-Pattern 2: Separate Routes for Daily and Weekly
+### Anti-Pattern 3: API Route for CSV Export
 
-**What people do:** Create `/dashboard/daily` and `/dashboard/weekly` as separate page files, each with their own data fetching.
+**What people do:** Create `/api/export?tab=daily&period=this-week` that fetches data and returns CSV.
+**Why it's wrong:** Adds a network round-trip, duplicates the `getTeamDashboardData` + filter logic, requires re-authentication on the API route, and is unnecessary when data is already rendered client-side.
+**Do this instead:** Generate CSV from the `records[]` array already passed as props to the Client Component.
 
-**Why it's wrong:** Duplicates the page layout, KPI cards, chart grid, and comparison logic across two files. Any UI change must be made in two places. The project constraint explicitly says "single page with tab switching."
+### Anti-Pattern 4: Putting `normalizeDate` Only in `charts-section.tsx`
 
-**Do this instead:** One `page.tsx` that reads `searchParams.tab` and dispatches accordingly. The components are identical between tabs -- only the data and labels differ.
+**What people do:** Leave `normalizeDate()` where it currently lives.
+**Why it's wrong:** Period filtering in `page.tsx` needs to compare dates. If normalization only happens inside `ChartsSection`, the period filter in `page.tsx` operates on raw un-normalized strings (e.g., "2026. 2. 5") which breaks date comparison.
+**Do this instead:** Extract to `lib/date-utils.ts`. Both `charts-section.tsx` and `lib/data.ts` import from there.
 
-### Anti-Pattern 3: Fetching Both Sheets Simultaneously
-
-**What people do:** Fetch both daily and weekly data on every page load, regardless of which tab is active, "in case the user switches tabs."
-
-**Why it's wrong:** Doubles the Google Sheets API calls and server render time for no benefit. The user may never switch tabs. And when they do, the soft navigation is fast enough (~200ms) that pre-fetching is premature optimization.
-
-**Do this instead:** Fetch only the active tab's sheet. If performance becomes an issue later, consider `prefetch` on the inactive tab's Link component (which Next.js does by default for visible Links, pre-rendering the RSC payload).
-
-### Anti-Pattern 4: Keeping Old Types Alongside New Ones
-
-**What people do:** Add new types while keeping old ones "for compatibility" or "gradual migration."
-
-**Why it's wrong:** The old types (KpiData with `totalRevenue`/`orderCount`) have zero overlap with new types (TeamKpi with `revenue`/`profit`/`utilizationRate`). Keeping both creates confusion about which to import and leaves dead code in the codebase.
-
-**Do this instead:** Delete all old types in a single commit. Let TypeScript errors guide the migration. This is a small codebase with <15 files that import dashboard types.
+---
 
 ## Integration Points
-
-### External Services
-
-| Service | Integration Pattern | Notes |
-|---------|---------------------|-------|
-| Google Sheets API v4 | Service account JWT via `googleapis` SDK. `fetchSheetData(range)` in `lib/sheets.ts`. | Unchanged from current. Only the range strings change (new sheet names). `GOOGLE_SHEETS_ID` points to the same spreadsheet, just different sheet tabs. |
-| NextAuth.js v5 | Google OAuth + Credentials provider in `auth.ts`. | No changes needed. Auth is orthogonal to the data layer rewrite. |
 
 ### Internal Boundaries
 
 | Boundary | Communication | Notes |
 |----------|---------------|-------|
-| Page -> Data Layer | `getTeamDashboardData(tab)` returns `Promise<TeamDashboardData>` | Single function call. Page never touches `fetchSheetData` directly. |
-| Page -> Components | Props passing. `<KpiCards kpis={data.kpis} />`, `<TrendChart data={data.records} />` | Standard React top-down data flow. No context or global state. |
-| TabSwitcher -> Page | `<Link href="/dashboard?tab=weekly">` triggers Next.js soft navigation | No direct function call. The URL change causes the Server Component to re-execute. |
-| Data Layer -> Sheets API | `fetchSheetData("daily!A1:G100")` returns `string[][] \| null` | Sheet range strings are the contract. If sheet structure changes, only parsers need updating. |
-| Data Layer -> Mock Data | Import `mockDailyRecords` / `mockWeeklyRecords` for fallback | Same pattern as current codebase. |
+| `page.tsx` → `PeriodFilter` | `activePeriod: PeriodKey` prop | Client Component reads its own URL params; prop is only needed to show active state |
+| `page.tsx` → `ExportButton` | `records: DailyRecord[] \| WeeklyRecord[]` (serializable) | Filtered records passed as plain array — no server functions |
+| `KpiCards` → `KpiCard` | `sparklineData: number[]` optional prop | Plain number array — crosses Server/Client boundary cleanly |
+| `KpiCard` → `SparklineChart` | `data: number[], trend: 'up'\|'down'\|'neutral'` | Client Component import from Server Component — valid in App Router |
+| `lib/date-utils.ts` → `lib/data.ts` | Pure functions, module import | No boundary crossing |
+| `lib/date-utils.ts` → `charts-section.tsx` | Pure functions, module import | Removes duplication |
+
+### External Services
+
+| Service | Integration Pattern | Notes |
+|---------|---------------------|-------|
+| Google Sheets API | Unchanged — `lib/sheets.ts` | v1.1 features add no new API calls |
+| Browser Download API | `URL.createObjectURL` + `<a>` click in `ExportButton` | No library needed; works in all modern browsers |
+
+---
+
+## Scaling Considerations
+
+This is a single-team dashboard with ~90 records max. Scaling is not a concern. Notes for future reference only:
+
+| Concern | Current approach | If data grew to 10K+ rows |
+|---------|-----------------|--------------------------|
+| Period filtering | Server-side in page.tsx (trivial for 90 rows) | Still fine; move to DB query if Google Sheets becomes slow |
+| CSV export | In-memory Blob (trivial for 90 rows) | Stream download via API route if rows exceed ~50K |
+| Sparkline data | Last 14 records sliced in memory | Still trivial |
+
+---
 
 ## Sources
 
-- Existing codebase analysis: `app/(dashboard)/dashboard/page.tsx`, `lib/data.ts`, `lib/sheets.ts`, `types/dashboard.ts` (HIGH confidence -- direct code inspection)
-- Next.js App Router searchParams pattern: derived from Next.js 15+ async searchParams requirement, confirmed by codebase running Next.js 16.1.6 (HIGH confidence -- codebase version verified)
-- `.planning/PROJECT.md`: Sheet structure (daily: date|revenue|profit|hours|count|utilization|target, weekly: week|revenue|profit|hours|count|utilization) (HIGH confidence -- project specification)
-- `.planning/codebase/ARCHITECTURE.md`: Existing 3-layer data abstraction pattern (HIGH confidence -- codebase analysis)
+- Next.js 16 App Router Server/Client Component boundary: https://nextjs.org/docs/app/building-your-application/rendering/composition-patterns (HIGH confidence — official docs)
+- Next.js 16 searchParams as Promise (async): https://nextjs.org/docs/app/api-reference/file-conventions/page#searchparams-optional (HIGH confidence — official docs, matches existing code in page.tsx)
+- Recharts LineChart for sparklines: https://recharts.org/en-US/api/LineChart (HIGH confidence — existing Recharts usage in codebase confirmed)
+- Browser CSV download without library: URL.createObjectURL + Blob pattern — standard Web API, no source needed (HIGH confidence)
+- Existing codebase patterns (v1.0): `components/dashboard/tab-nav.tsx` for URL-as-state, `components/dashboard/charts/*.tsx` for Client Component pattern, `lib/data.ts` for server-side data transformation (HIGH confidence — direct code inspection)
 
 ---
-*Architecture research for: Team sales dashboard with Daily/Weekly tab switching*
-*Researched: 2026-02-21*
+
+*Architecture research for: v1.1 features — period filter, CSV export, KPI sparklines*
+*Researched: 2026-02-27*
