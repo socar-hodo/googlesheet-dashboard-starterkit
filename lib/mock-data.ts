@@ -1,5 +1,5 @@
 // 경남울산사업팀 매출 대시보드 — 개발/폴백용 mock 데이터
-import type { DailyRecord, WeeklyRecord, TeamDashboardData } from "@/types/dashboard";
+import type { DailyRecord, WeeklyRecord, TeamDashboardData, CustomerTypeRow, RevenueBreakdownRow, CostBreakdownRow } from "@/types/dashboard";
 
 // --- 일별 mock 데이터 (43개: 2026-01-26 ~ 2026-03-08) ---
 // 2026-03 데이터 추가: 기본 period가 this-month(3월)이므로 현재 날짜 기준 데이터 필요
@@ -72,5 +72,12 @@ export const mockWeeklyRecords: WeeklyRecord[] = [
 export const mockTeamDashboardData: TeamDashboardData = {
   daily: mockDailyRecords,
   weekly: mockWeeklyRecords,
+  // Phase 9 신규 — 0 플레이스홀더 (UI 레이아웃 확인용, Sheets 연결 후 실제 데이터로 대체)
+  customerTypeDaily: [] as CustomerTypeRow[],
+  customerTypeWeekly: [] as CustomerTypeRow[],
+  revenueBreakdownDaily: [] as RevenueBreakdownRow[],
+  revenueBreakdownWeekly: [] as RevenueBreakdownRow[],
+  costBreakdownDaily: [] as CostBreakdownRow[],
+  costBreakdownWeekly: [] as CostBreakdownRow[],
   fetchedAt: "2026-03-08T00:00:00.000Z",
 };

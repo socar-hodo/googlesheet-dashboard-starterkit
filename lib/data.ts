@@ -209,6 +209,13 @@ export async function getTeamDashboardData(): Promise<TeamDashboardData> {
     return {
       daily,
       weekly,
+      // Phase 9 신규 필드 — 파서는 Plan 02에서 구현. 현재는 빈 배열 반환
+      customerTypeDaily: [],
+      customerTypeWeekly: [],
+      revenueBreakdownDaily: [],
+      revenueBreakdownWeekly: [],
+      costBreakdownDaily: [],
+      costBreakdownWeekly: [],
       fetchedAt: new Date().toISOString(),
     };
   } catch (error) {
