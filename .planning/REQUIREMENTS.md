@@ -9,7 +9,7 @@
 
 - [ ] **CTYPE-01**: 사용자가 왕복/부름/편도 이용건수 비율을 도넛 차트로 확인할 수 있다
 - [ ] **CTYPE-02**: 사용자가 왕복/부름/편도 이용건수의 일별/주차별 추이를 스택 차트로 확인할 수 있다
-- [ ] **CTYPE-03**: 기간 필터(이번 주/지난 주/이번 달/지난 달) 변경 시 고객 유형 차트도 즉시 반영된다
+- [x] **CTYPE-03**: 기간 필터(이번 주/지난 주/이번 달/지난 달) 변경 시 고객 유형 차트도 즉시 반영된다
 
 ### 매출 세분화 (Revenue Breakdown)
 
@@ -50,7 +50,7 @@
 |-------------|-------|--------|
 | CTYPE-01 | Phase 9 (data) + Phase 10 (UI) | Phase 9 data layer done — UI pending |
 | CTYPE-02 | Phase 9 (data) + Phase 10 (UI) | Phase 9 data layer done — UI pending |
-| CTYPE-03 | Phase 10 | Pending |
+| CTYPE-03 | Phase 10 | Complete |
 | REV-01 | Phase 9 (data) + Phase 11 (UI) | Phase 9 data layer done — UI pending |
 | REV-02 | Phase 9 (data) + Phase 11 (UI) | Phase 9 data layer done — UI pending |
 | REV-03 | Phase 11 | Pending |
