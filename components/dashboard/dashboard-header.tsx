@@ -2,7 +2,9 @@
 
 // DashboardHeader — 탭 전환(일별/주차별) + 기간 필터를 한 행에 좌우 배치
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
+import { Download } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
 import { PeriodFilter } from './period-filter';
 import {
   type PeriodKey,
@@ -16,10 +18,12 @@ interface DashboardHeaderProps {
   tab: 'daily' | 'weekly';
   period: PeriodKey;
   onPeriodChange: (p: PeriodKey) => void;
+  onExportCsv: () => void;
+  onExportXlsx: () => void;
 }
 
 /** 대시보드 헤더 — 탭 전환 시 period를 해당 탭 기본값으로 리셋 */
-export function DashboardHeader({ tab, period, onPeriodChange }: DashboardHeaderProps) {
+export function DashboardHeader({ tab, period, onPeriodChange, onExportCsv, onExportXlsx }: DashboardHeaderProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -43,12 +47,23 @@ export function DashboardHeader({ tab, period, onPeriodChange }: DashboardHeader
         </TabsList>
       </Tabs>
 
-      {/* 오른쪽: 기간 선택 버튼 */}
-      <PeriodFilter
-        periods={tab === 'daily' ? DAILY_PERIODS : WEEKLY_PERIODS}
-        active={period}
-        onChange={onPeriodChange}
-      />
+      {/* 오른쪽: 기간 선택 + 내보내기 버튼 */}
+      <div className="flex items-center gap-2">
+        <PeriodFilter
+          periods={tab === 'daily' ? DAILY_PERIODS : WEEKLY_PERIODS}
+          active={period}
+          onChange={onPeriodChange}
+        />
+        <div className="h-4 w-px bg-border" />
+        <Button variant="outline" size="sm" onClick={onExportCsv}>
+          <Download className="h-4 w-4 mr-1" />
+          CSV
+        </Button>
+        <Button variant="outline" size="sm" onClick={onExportXlsx}>
+          <Download className="h-4 w-4 mr-1" />
+          Excel
+        </Button>
+      </div>
     </div>
   );
 }

@@ -5,6 +5,7 @@
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useState, useCallback, useMemo } from 'react';
 import type { TeamDashboardData } from '@/types/dashboard';
+import { exportToCsv, exportToXlsx } from '@/lib/export-utils';
 import {
   type PeriodKey,
   getDateRange,
@@ -84,10 +85,28 @@ export function DashboardContent({ data, tab, initialPeriod }: DashboardContentP
     }
   }, [data, tab, period]);
 
+  /** CSV 내보내기 핸들러 — 현재 필터링된 데이터를 .csv로 다운로드 */
+  const handleExportCsv = useCallback(() => {
+    const records = tab === 'daily' ? filteredData.daily : filteredData.weekly;
+    exportToCsv(records, tab);
+  }, [filteredData, tab]);
+
+  /** Excel 내보내기 핸들러 — 현재 필터링된 데이터를 .xlsx로 다운로드 */
+  const handleExportXlsx = useCallback(() => {
+    const records = tab === 'daily' ? filteredData.daily : filteredData.weekly;
+    exportToXlsx(records, tab);
+  }, [filteredData, tab]);
+
   return (
     <div className="space-y-6">
-      {/* 헤더: 탭 전환 + 기간 필터 */}
-      <DashboardHeader tab={tab} period={period} onPeriodChange={handlePeriodChange} />
+      {/* 헤더: 탭 전환 + 기간 필터 + 내보내기 버튼 */}
+      <DashboardHeader
+        tab={tab}
+        period={period}
+        onPeriodChange={handlePeriodChange}
+        onExportCsv={handleExportCsv}
+        onExportXlsx={handleExportXlsx}
+      />
 
       {/* KPI 카드 — 필터링된 데이터 기반 */}
       <KpiCards data={filteredData} tab={tab} />
