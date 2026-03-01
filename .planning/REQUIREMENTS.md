@@ -48,21 +48,22 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CTYPE-01 | Phase 10 | Pending |
-| CTYPE-02 | Phase 10 | Pending |
+| CTYPE-01 | Phase 9 (data) + Phase 10 (UI) | Phase 9 data layer done — UI pending |
+| CTYPE-02 | Phase 9 (data) + Phase 10 (UI) | Phase 9 data layer done — UI pending |
 | CTYPE-03 | Phase 10 | Pending |
-| REV-01 | Phase 11 | Pending |
-| REV-02 | Phase 11 | Pending |
+| REV-01 | Phase 9 (data) + Phase 11 (UI) | Phase 9 data layer done — UI pending |
+| REV-02 | Phase 9 (data) + Phase 11 (UI) | Phase 9 data layer done — UI pending |
 | REV-03 | Phase 11 | Pending |
-| COST-01 | Phase 12 | Pending |
-| COST-02 | Phase 12 | Pending |
+| COST-01 | Phase 9 (data) + Phase 12 (UI) | Phase 9 data layer done — UI pending |
+| COST-02 | Phase 9 (data) + Phase 12 (UI) | Phase 9 data layer done — UI pending |
 | COST-03 | Phase 12 | Pending |
 
 **Coverage:**
 - v1.2 requirements: 9 total
-- Mapped to phases: 9 (Phase 10, 11, 12 — enabled by Phase 9 data layer)
+- Mapped to phases: 9 (Phase 9 data layer + Phase 10, 11, 12 UI)
 - Unmapped: 0 ✓
+- Phase 9 Plan 01 complete: data types + mock for CTYPE-01/02, REV-01/02, COST-01/02
 
 ---
 *Requirements defined: 2026-03-01*
-*Traceability updated: 2026-03-01 (v1.2 roadmap)*
+*Traceability updated: 2026-03-01 (Phase 09-01 complete — data layer types)*
