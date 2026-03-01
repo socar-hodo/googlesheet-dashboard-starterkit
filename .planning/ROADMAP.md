@@ -67,7 +67,10 @@ Plans:
   1. 대시보드에 도넛 차트가 표시되어 왕복/부름/편도 각각의 이용건수 비율(%)을 색상으로 구분해 보여준다
   2. 스택 바 또는 스택 라인 차트에서 날짜(일별 탭) 또는 주차(주차별 탭)별 세 유형의 건수 추이를 확인할 수 있다
   3. 이번 주/지난 주/이번 달/지난 달 토글을 바꾸면 도넛 차트와 추이 차트 모두 해당 기간 데이터로 즉시 갱신된다
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 10-01-PLAN.md — chart-colors.ts chart3/4/5 추가 + mock-data.ts 샘플 데이터 채우기 + filteredData useMemo customerType 필터링 확장
+- [ ] 10-02-PLAN.md — CustomerTypeDonut + CustomerTypeTrend + CustomerTypeSection 신규 생성 + ChartsSection 연결 + Playwright 검증
 
 ### Phase 11: Revenue Breakdown
 **Goal**: 사용자가 매출을 대여/PF/주행/부름/기타 유형별로 나눠 구성 비율과 금액을 한눈에 파악할 수 있다
@@ -103,6 +106,6 @@ Plans:
 | 7. Export | v1.1 | 2/2 | Complete | 2026-03-01 |
 | 8. Sparkline | v1.1 | 2/2 | Complete | 2026-03-01 |
 | 9. v1.2 Data Layer | v1.2 | 2/2 | Complete | 2026-03-01 |
-| 10. Customer Type Analysis | v1.2 | 0/? | Not started | - |
+| 10. Customer Type Analysis | v1.2 | 0/2 | In progress | - |
 | 11. Revenue Breakdown | v1.2 | 0/? | Not started | - |
 | 12. Cost Analysis | v1.2 | 0/? | Not started | - |
