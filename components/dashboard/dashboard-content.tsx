@@ -11,6 +11,7 @@ import {
   getDateRange,
   filterDailyByPeriod,
   filterWeeklyByPeriod,
+  filterCustomerTypeWeekly,
   DEFAULT_DAILY_PERIOD,
   DEFAULT_WEEKLY_PERIOD,
   DAILY_PERIODS,
@@ -74,14 +75,20 @@ export function DashboardContent({ data, tab, initialPeriod }: DashboardContentP
     if (tab === 'daily') {
       const range = getDateRange(period);
       const filtered = filterDailyByPeriod(data.daily, range);
-      return { ...data, daily: filtered };
+      // 고객 유형 일별 데이터도 동일한 날짜 범위로 필터링
+      const filteredCustomerTypeDaily = data.customerTypeDaily.filter(
+        (r) => r.date !== undefined && r.date >= range.start && r.date <= range.end,
+      );
+      return { ...data, daily: filtered, customerTypeDaily: filteredCustomerTypeDaily };
     } else {
       // Weekly 탭: this-month 또는 last-month만 유효 (parsePeriod에서 보장됨)
       const weeklyPeriod = (period === 'last-month' ? 'last-month' : 'this-month') as
         | 'this-month'
         | 'last-month';
       const filtered = filterWeeklyByPeriod(data.weekly, weeklyPeriod);
-      return { ...data, weekly: filtered };
+      // 고객 유형 주차별 데이터도 동일한 월 기준으로 필터링
+      const filteredCustomerTypeWeekly = filterCustomerTypeWeekly(data.customerTypeWeekly, weeklyPeriod);
+      return { ...data, weekly: filtered, customerTypeWeekly: filteredCustomerTypeWeekly };
     }
   }, [data, tab, period]);
 
