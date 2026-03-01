@@ -128,9 +128,9 @@
 | FILT-01 | Phase 6 | Complete (06-02 UI 컴포넌트 완료) |
 | FILT-02 | Phase 6 | Complete (06-03 DashboardContent 통합 완료) |
 | FILT-03 | Phase 6 | Complete (06-03 URL searchParams 동기화 완료) |
-| EXPO-01 | Phase 7 | Pending |
-| EXPO-02 | Phase 7 | Pending |
-| EXPO-03 | Phase 7 | Pending |
+| EXPO-01 | Phase 7 | In Progress (07-01 export-utils 라이브러리 완료, 07-02 UI 통합 대기) |
+| EXPO-02 | Phase 7 | In Progress (07-01 export-utils 라이브러리 완료, 07-02 UI 통합 대기) |
+| EXPO-03 | Phase 7 | In Progress (07-01 파일명 로직 구현됨, 07-02 브라우저 검증 대기) |
 | SPRK-01 | Phase 8 | Pending |
 | SPRK-02 | Phase 8 | Pending |
 
