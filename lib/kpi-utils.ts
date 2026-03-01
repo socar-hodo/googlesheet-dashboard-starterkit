@@ -72,7 +72,7 @@ export function formatDelta(
   const sign = percent >= 0 ? '+' : '';
   if (unit === '원') {
     const absWon = Math.abs(absolute);
-    return `${arrow} ${sign}${percent}% / ₩${(absWon / 10000).toLocaleString()}만`;
+    return `${arrow} ${sign}${percent}% / ₩${Math.round(absWon / 10000).toLocaleString()}만`;
   }
   if (unit === '%') {
     return `${arrow} ${sign}${percent}% / ${Math.abs(absolute).toFixed(1)}%p`;
@@ -92,7 +92,7 @@ export function formatKpiValue(
   value: number,
   unit: '원' | '건' | '%' | '시간'
 ): string {
-  if (unit === '원') return `₩${(value / 10000).toLocaleString()}만`;
+  if (unit === '원') return `₩${Math.round(value / 10000).toLocaleString()}만`;
   if (unit === '%') return `${value.toFixed(1)}%`;
   if (unit === '시간') return `${value.toLocaleString()}시간`;
   return `${value.toLocaleString()}건`;

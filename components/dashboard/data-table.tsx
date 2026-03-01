@@ -16,9 +16,9 @@ interface DataTableProps {
   tab: 'daily' | 'weekly';
 }
 
-/** 금액 포맷 — 원 단위 전체 */
+/** 금액 포맷 — 만원 단위, 소수점 없음 */
 function formatCurrency(value: number): string {
-  return `₩${value.toLocaleString()}`;
+  return `₩${Math.round(value / 10000).toLocaleString()}만`;
 }
 
 /** 이용시간 포맷 — Xh Ym 형식 */

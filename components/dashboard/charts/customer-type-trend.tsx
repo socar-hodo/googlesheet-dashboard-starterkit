@@ -51,8 +51,12 @@ export function CustomerTypeTrend({ data, tab }: CustomerTypeTrendProps) {
   const { resolvedTheme } = useTheme();
   const colors = getChartColors(resolvedTheme === 'dark');
 
-  // 빈 데이터 처리
-  if (data.length === 0) {
+  // 빈 데이터 처리 (배열이 비었거나 모든 건수 합계가 0인 경우)
+  const totalCount = data.reduce(
+    (sum, row) => sum + row.roundTripCount + row.callCount + row.oneWayCount,
+    0,
+  );
+  if (data.length === 0 || totalCount === 0) {
     return (
       <Card>
         <CardHeader>

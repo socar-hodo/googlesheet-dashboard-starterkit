@@ -66,13 +66,13 @@ export function RevenueTrendChart({ records, tab }: RevenueTrendChartProps) {
               <YAxis
                 tick={{ fill: colors.axis, fontSize: 11 }}
                 tickFormatter={(v) =>
-                  `${(v / 10000).toLocaleString()}만`
+                  `${Math.round(v / 10000).toLocaleString()}만`
                 }
                 width={55}
               />
               <Tooltip
                 formatter={(value, name) => [
-                  `₩${(Number(value) / 10000).toLocaleString()}만`,
+                  `₩${Math.round(Number(value) / 10000).toLocaleString()}만`,
                   name === "revenue" ? "실적" : "목표",
                 ]}
                 contentStyle={{
