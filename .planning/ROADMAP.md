@@ -69,7 +69,11 @@ Plans:
   1. 5개 KPI 카드 각각에 최근 기간 데이터 포인트를 시각화하는 미니 스파크라인 차트가 표시된다
   2. 스파크라인이 다크 모드에서 적절한 색상으로, 라이트 모드에서 적절한 색상으로 각각 올바르게 렌더링된다
   3. 스파크라인이 기존 KPI 카드 레이아웃(달성률, 프로그레스 바, 델타)을 가리거나 깨뜨리지 않는다
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 08-01-PLAN.md — kpi-card.tsx + kpi-cards.tsx 스파크라인 구현 (AreaChart prop 추가, 5개 KPI 데이터 추출)
+- [ ] 08-02-PLAN.md — Playwright 브라우저 검증 (5개 카드 렌더링, 테마 전환, 레이아웃 확인)
 
 ## Progress
 
@@ -82,4 +86,4 @@ Plans:
 | 5. Cleanup + Migration | v1.0 | 1/1 | Complete | 2026-02-24 |
 | 6. Period Filter | v1.1 | 3/3 | Complete | 2026-03-01 |
 | 7. Export | v1.1 | 2/2 | Complete | 2026-03-01 |
-| 8. Sparkline | v1.1 | 0/? | Not started | - |
+| 8. Sparkline | v1.1 | 0/2 | Not started | - |
