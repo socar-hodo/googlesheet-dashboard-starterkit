@@ -1,5 +1,5 @@
 // 기간 필터 유틸리티 — 순수 함수 모음 (외부 의존성 없음)
-import type { DailyRecord, WeeklyRecord } from '@/types/dashboard';
+import type { CustomerTypeRow, DailyRecord, WeeklyRecord } from '@/types/dashboard';
 
 // ---------------------------------------------------------------------------
 // 타입 정의
@@ -156,4 +156,24 @@ export function filterWeeklyByPeriod(
 
   // 목표 월에 해당하는 레코드만 반환
   return records.filter((r) => parseWeekMonth(r.week) === targetMonth);
+}
+
+/**
+ * CustomerTypeRow 배열을 기간(이번 달/지난 달)으로 필터링한다.
+ * filterWeeklyByPeriod와 동일한 로직 — week 필드 기준 월 파싱.
+ * - 파싱 불가 레코드(week 없음 포함)가 하나라도 있으면: 전체 반환 (폴백)
+ */
+export function filterCustomerTypeWeekly(
+  rows: CustomerTypeRow[],
+  period: 'this-month' | 'last-month',
+  today: Date = new Date(),
+): CustomerTypeRow[] {
+  const currentMonth = today.getMonth() + 1;
+  const lastMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+  const targetMonth = period === 'this-month' ? currentMonth : lastMonth;
+
+  const hasUnparseable = rows.some((r) => !r.week || parseWeekMonth(r.week) === null);
+  if (hasUnparseable) return rows;
+
+  return rows.filter((r) => r.week !== undefined && parseWeekMonth(r.week) === targetMonth);
 }

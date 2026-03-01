@@ -5,6 +5,9 @@
 export interface ChartColorMode {
   chart1: string;
   chart2: string;
+  chart3: string;
+  chart4: string;
+  chart5: string;
   profitPositive: string;
   profitNegative: string;
   utilizationLine: string;
@@ -18,6 +21,9 @@ export const CHART_COLORS = {
   light: {
     chart1: 'oklch(0.646 0.222 41.116)',   // --chart-1 라이트 (globals.css)
     chart2: 'oklch(0.6 0.118 184.704)',    // --chart-2 라이트
+    chart3: 'oklch(0.398 0.07 227.392)',   // --chart-3 라이트
+    chart4: 'oklch(0.828 0.189 84.429)',   // --chart-4 라이트
+    chart5: 'oklch(0.769 0.188 70.08)',    // --chart-5 라이트
     profitPositive: '#16a34a',             // green-600 (KPI 카드 델타와 동일)
     profitNegative: '#dc2626',             // red-600
     utilizationLine: 'oklch(0.6 0.118 184.704)', // --chart-2
@@ -29,6 +35,9 @@ export const CHART_COLORS = {
   dark: {
     chart1: 'oklch(0.488 0.243 264.376)', // --chart-1 다크 (globals.css)
     chart2: 'oklch(0.696 0.17 162.48)',   // --chart-2 다크
+    chart3: 'oklch(0.769 0.188 70.08)',   // --chart-3 다크
+    chart4: 'oklch(0.627 0.265 303.9)',   // --chart-4 다크
+    chart5: 'oklch(0.645 0.246 16.439)',  // --chart-5 다크
     profitPositive: '#4ade80',             // green-400
     profitNegative: '#f87171',             // red-400
     utilizationLine: 'oklch(0.696 0.17 162.48)',
