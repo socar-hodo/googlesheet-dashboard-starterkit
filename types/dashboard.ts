@@ -55,6 +55,20 @@ export interface CostBreakdownRow {
   zoneOneWayTransportCost: number;  // 존편도운반비 (드릴다운 세부)
 }
 
+/** 예측 데이터 한 행 — FORECAST 시트 (일별, 1행 헤더 구조) */
+export interface ForecastRow {
+  date: string;                  // d 컬럼 (ISO YYYY-MM-DD)
+  ulsanTarget: number;           // 울산광역시(목표)
+  ulsanForecast: number;         // 울산광역시(사전)
+  ulsanAchievement: number;      // 울산광역시(달성)
+  gyeongnamTarget: number;       // 경상남도(목표)
+  gyeongnamForecast: number;     // 경상남도(사전)
+  gyeongnamAchievement: number;  // 경상남도(달성)
+  combinedTarget: number;        // 경남+울산(목표)
+  combinedForecast: number;      // 경남+울산(사전)
+  combinedAchievement: number;   // 경남+울산(달성)
+}
+
 /** 대시보드 전체 데이터 컨테이너 */
 export interface TeamDashboardData {
   daily: DailyRecord[];
@@ -66,5 +80,6 @@ export interface TeamDashboardData {
   revenueBreakdownWeekly: RevenueBreakdownRow[];
   costBreakdownDaily: CostBreakdownRow[];
   costBreakdownWeekly: CostBreakdownRow[];
+  forecastDaily: ForecastRow[]; // FORECAST 시트 (일별 사전 매출/달성률)
   fetchedAt: string;        // ISO 8601 타임스탬프 (예: "2026-02-22T09:00:00.000Z")
 }

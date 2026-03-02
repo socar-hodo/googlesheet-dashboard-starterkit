@@ -19,7 +19,7 @@ export default async function DashboardPage({
 }) {
   // Next.js 16: searchParams는 Promise — await 필수
   const { tab = 'daily', period } = await searchParams;
-  const activeTab = tab === 'weekly' ? 'weekly' : 'daily';
+  const activeTab = tab === 'weekly' ? 'weekly' : tab === 'forecast' ? 'forecast' : 'daily';
 
   const data = await getTeamDashboardData();
 

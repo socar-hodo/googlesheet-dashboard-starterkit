@@ -1,5 +1,5 @@
 // 경남울산사업팀 매출 대시보드 — 개발/폴백용 mock 데이터
-import type { DailyRecord, WeeklyRecord, TeamDashboardData, CustomerTypeRow, RevenueBreakdownRow, CostBreakdownRow } from "@/types/dashboard";
+import type { DailyRecord, WeeklyRecord, TeamDashboardData, CustomerTypeRow, RevenueBreakdownRow, CostBreakdownRow, ForecastRow } from "@/types/dashboard";
 
 // --- 일별 mock 데이터 (43개: 2026-01-26 ~ 2026-03-08) ---
 // 2026-03 데이터 추가: 기본 period가 this-month(3월)이므로 현재 날짜 기준 데이터 필요
@@ -96,5 +96,14 @@ export const mockTeamDashboardData: TeamDashboardData = {
   revenueBreakdownWeekly: [] as RevenueBreakdownRow[],
   costBreakdownDaily: [] as CostBreakdownRow[],
   costBreakdownWeekly: [] as CostBreakdownRow[],
+  forecastDaily: [
+    { date: "2026-03-01", ulsanTarget: 6000000, ulsanForecast: 5800000, ulsanAchievement: 96.7, gyeongnamTarget: 4500000, gyeongnamForecast: 4400000, gyeongnamAchievement: 97.8, combinedTarget: 10500000, combinedForecast: 10200000, combinedAchievement: 97.1 },
+    { date: "2026-03-02", ulsanTarget: 6000000, ulsanForecast: 5100000, ulsanAchievement: 85.0, gyeongnamTarget: 4500000, gyeongnamForecast: 4000000, gyeongnamAchievement: 88.9, combinedTarget: 10500000, combinedForecast: 9100000, combinedAchievement: 86.7 },
+    { date: "2026-03-03", ulsanTarget: 6000000, ulsanForecast: 6500000, ulsanAchievement: 108.3, gyeongnamTarget: 4500000, gyeongnamForecast: 5000000, gyeongnamAchievement: 111.1, combinedTarget: 10500000, combinedForecast: 11500000, combinedAchievement: 109.5 },
+    { date: "2026-03-04", ulsanTarget: 6000000, ulsanForecast: 4800000, ulsanAchievement: 80.0, gyeongnamTarget: 4500000, gyeongnamForecast: 3600000, gyeongnamAchievement: 80.0, combinedTarget: 10500000, combinedForecast: 8400000, combinedAchievement: 80.0 },
+    { date: "2026-03-05", ulsanTarget: 6000000, ulsanForecast: 5700000, ulsanAchievement: 95.0, gyeongnamTarget: 4500000, gyeongnamForecast: 4100000, gyeongnamAchievement: 91.1, combinedTarget: 10500000, combinedForecast: 9800000, combinedAchievement: 93.3 },
+    { date: "2026-03-06", ulsanTarget: 6000000, ulsanForecast: 5200000, ulsanAchievement: 86.7, gyeongnamTarget: 4500000, gyeongnamForecast: 3700000, gyeongnamAchievement: 82.2, combinedTarget: 10500000, combinedForecast: 8900000, combinedAchievement: 84.8 },
+    { date: "2026-03-07", ulsanTarget: 6000000, ulsanForecast: 6300000, ulsanAchievement: 105.0, gyeongnamTarget: 4500000, gyeongnamForecast: 4600000, gyeongnamAchievement: 102.2, combinedTarget: 10500000, combinedForecast: 10900000, combinedAchievement: 103.8 },
+  ] as ForecastRow[],
   fetchedAt: "2026-03-08T00:00:00.000Z",
 };

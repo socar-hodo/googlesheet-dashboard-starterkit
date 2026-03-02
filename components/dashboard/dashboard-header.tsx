@@ -15,7 +15,7 @@ import {
 } from '@/lib/period-utils';
 
 interface DashboardHeaderProps {
-  tab: 'daily' | 'weekly';
+  tab: 'daily' | 'weekly' | 'forecast';
   period: PeriodKey;
   onPeriodChange: (p: PeriodKey) => void;
   onExportCsv: () => void;
@@ -32,8 +32,7 @@ export function DashboardHeader({ tab, period, onPeriodChange, onExportCsv, onEx
   function handleTabChange(value: string) {
     const params = new URLSearchParams(searchParams.toString());
     params.set('tab', value);
-    // 탭 전환 시 해당 탭의 기본 기간으로 리셋
-    params.set('period', value === 'daily' ? DEFAULT_DAILY_PERIOD : DEFAULT_WEEKLY_PERIOD);
+    params.set('period', value === 'weekly' ? DEFAULT_WEEKLY_PERIOD : DEFAULT_DAILY_PERIOD);
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }
 
@@ -44,25 +43,30 @@ export function DashboardHeader({ tab, period, onPeriodChange, onExportCsv, onEx
         <TabsList>
           <TabsTrigger value="daily">일별</TabsTrigger>
           <TabsTrigger value="weekly">주차별</TabsTrigger>
+          <TabsTrigger value="forecast">예측</TabsTrigger>
         </TabsList>
       </Tabs>
 
-      {/* 오른쪽: 기간 선택 + 내보내기 버튼 */}
+      {/* 오른쪽: 기간 선택 + 내보내기 (예측 탭은 기간 필터만, 내보내기 숨김) */}
       <div className="flex items-center gap-2">
         <PeriodFilter
-          periods={tab === 'daily' ? DAILY_PERIODS : WEEKLY_PERIODS}
+          periods={tab === 'weekly' ? WEEKLY_PERIODS : DAILY_PERIODS}
           active={period}
           onChange={onPeriodChange}
         />
-        <div className="h-4 w-px bg-border" />
-        <Button variant="outline" size="sm" onClick={onExportCsv}>
-          <Download className="h-4 w-4 mr-1" />
-          CSV
-        </Button>
-        <Button variant="outline" size="sm" onClick={onExportXlsx}>
-          <Download className="h-4 w-4 mr-1" />
-          Excel
-        </Button>
+        {tab !== 'forecast' && (
+          <>
+            <div className="h-4 w-px bg-border" />
+            <Button variant="outline" size="sm" onClick={onExportCsv}>
+              <Download className="h-4 w-4 mr-1" />
+              CSV
+            </Button>
+            <Button variant="outline" size="sm" onClick={onExportXlsx}>
+              <Download className="h-4 w-4 mr-1" />
+              Excel
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );

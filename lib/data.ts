@@ -1,12 +1,14 @@
 // 경남울산사업팀 매출 대시보드 — 데이터 페칭 및 파싱 레이어
-import type { DailyRecord, WeeklyRecord, TeamDashboardData, CustomerTypeRow, RevenueBreakdownRow, CostBreakdownRow } from "@/types/dashboard";
+import type { DailyRecord, WeeklyRecord, TeamDashboardData, CustomerTypeRow, RevenueBreakdownRow, CostBreakdownRow, ForecastRow } from "@/types/dashboard";
 import { fetchSheetData, isGoogleSheetsConfigured } from "./sheets";
 import { mockTeamDashboardData } from "./mock-data";
 
 // 실제 Google Sheets 탭 이름 — 환경변수로 재정의 가능 (PITFALLS.md Pitfall 2 대응)
 const DAILY_SHEET = process.env.GOOGLE_DAILY_SHEET_NAME ?? "일별";
 const WEEKLY_SHEET = process.env.GOOGLE_WEEKLY_SHEET_NAME ?? "주차별";
-// [d] raw / [w] raw — 매출세분화 + 비용분석 전용 시트
+const FORECAST_SHEET = process.env.GOOGLE_FORECAST_SHEET_NAME ?? "FORECAST";
+
+// [d] raw / [w] raw — 매출세분화 + 비용분析 전용 시트
 // 시트명에 대괄호 특수문자 포함 → fetchSheetData 호출 시 단일 따옴표로 감싸야 한다
 const DAILY_RAW_SHEET = process.env.GOOGLE_DAILY_RAW_SHEET_NAME ?? "[d] raw";
 const WEEKLY_RAW_SHEET = process.env.GOOGLE_WEEKLY_RAW_SHEET_NAME ?? "[w] raw";
@@ -37,6 +39,20 @@ const CUSTOMER_TYPE_HEADERS = {
   roundTrip: "왕복_건수",
   call: "부름_건수",
   oneWay: "편도_건수",
+} as const;
+
+// FORECAST 시트 헤더 — 1행 헤더 구조, 날짜 컬럼은 "d"
+const FORECAST_HEADERS = {
+  date: "d",
+  ulsanTarget: "울산광역시(목표)",
+  ulsanForecast: "울산광역시(사전)",
+  ulsanAchievement: "울산광역시(달성률)",
+  gyeongnamTarget: "경상남도(목표)",
+  gyeongnamForecast: "경상남도(사전)",
+  gyeongnamAchievement: "경상남도(달성률)",
+  combinedTarget: "경남+울산(목표)",
+  combinedForecast: "경남+울산(사전)",
+  combinedAchievement: "경남+울산(달성률)",
 } as const;
 
 // [d] raw / [w] raw 시트 매출 세분화 헤더
@@ -319,6 +335,43 @@ export function parseCostBreakdownFromRaw(rows: string[][]): CostBreakdownRow[] 
     }));
 }
 
+/**
+ * FORECAST 시트 rows에서 일별 지역별 사전 매출/달성률 데이터를 파싱한다.
+ * 1행 헤더 구조 (rows[0]=헤더, rows[1~]=데이터) — 다른 시트와 다름에 주의.
+ */
+export function parseForecastFromRows(rows: string[][]): ForecastRow[] {
+  if (rows.length < 2) return [];
+  const colIndex = buildColumnIndex(rows[0]); // 1행 헤더
+
+  const getCell = (row: string[], h: string): string | undefined => {
+    const idx = colIndex.get(h);
+    return idx !== undefined ? row[idx] : undefined;
+  };
+
+  for (const [, headerName] of Object.entries(FORECAST_HEADERS)) {
+    if (!colIndex.has(headerName)) {
+      console.warn(`[parseForecastFromRows] 헤더를 찾을 수 없음: "${headerName}"`);
+    }
+  }
+
+  const dateIdx = colIndex.get(FORECAST_HEADERS.date) ?? -1;
+  return rows
+    .slice(1) // 데이터는 2행부터
+    .filter((row) => (row[dateIdx] ?? "").trim() !== "")
+    .map((row): ForecastRow => ({
+      date: normalizeDateToISO((getCell(row, FORECAST_HEADERS.date) ?? "").trim()),
+      ulsanTarget: safeNumber(getCell(row, FORECAST_HEADERS.ulsanTarget)),
+      ulsanForecast: safeNumber(getCell(row, FORECAST_HEADERS.ulsanForecast)),
+      ulsanAchievement: safeNumber(getCell(row, FORECAST_HEADERS.ulsanAchievement)),
+      gyeongnamTarget: safeNumber(getCell(row, FORECAST_HEADERS.gyeongnamTarget)),
+      gyeongnamForecast: safeNumber(getCell(row, FORECAST_HEADERS.gyeongnamForecast)),
+      gyeongnamAchievement: safeNumber(getCell(row, FORECAST_HEADERS.gyeongnamAchievement)),
+      combinedTarget: safeNumber(getCell(row, FORECAST_HEADERS.combinedTarget)),
+      combinedForecast: safeNumber(getCell(row, FORECAST_HEADERS.combinedForecast)),
+      combinedAchievement: safeNumber(getCell(row, FORECAST_HEADERS.combinedAchievement)),
+    }));
+}
+
 // --- 통합 데이터 페칭 함수 ---
 
 /**
@@ -339,12 +392,13 @@ export async function getTeamDashboardData(): Promise<TeamDashboardData> {
   }
 
   try {
-    // 네 시트를 병렬 fetch — [d] raw / [w] raw는 특수문자 시트명이므로 단일 따옴표로 감싼다
-    const [dailyRows, weeklyRows, dailyRawRows, weeklyRawRows] = await Promise.all([
+    // 다섯 시트를 병렬 fetch — [d] raw / [w] raw는 특수문자 시트명이므로 단일 따옴표로 감싼다
+    const [dailyRows, weeklyRows, dailyRawRows, weeklyRawRows, forecastRows] = await Promise.all([
       fetchSheetData(`${DAILY_SHEET}!A1:DZ`),
       fetchSheetData(`${WEEKLY_SHEET}!A1:DZ`),
       fetchSheetData(`'${DAILY_RAW_SHEET}'!A1:DZ`),
       fetchSheetData(`'${WEEKLY_RAW_SHEET}'!A1:DZ`),
+      fetchSheetData(`${FORECAST_SHEET}!A1:DZ`),
     ]);
 
     // 개별 시트 실패 시 해당 mock 배열로 대체
@@ -375,6 +429,10 @@ export async function getTeamDashboardData(): Promise<TeamDashboardData> {
       ? parseCostBreakdownFromRaw(weeklyRawRows)
       : mockTeamDashboardData.costBreakdownWeekly;
 
+    const forecastDaily = forecastRows
+      ? parseForecastFromRows(forecastRows)
+      : mockTeamDashboardData.forecastDaily;
+
     return {
       daily,
       weekly,
@@ -384,6 +442,7 @@ export async function getTeamDashboardData(): Promise<TeamDashboardData> {
       revenueBreakdownWeekly,
       costBreakdownDaily,
       costBreakdownWeekly,
+      forecastDaily,
       fetchedAt: new Date().toISOString(),
     };
   } catch (error) {

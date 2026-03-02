@@ -52,5 +52,49 @@ Last activity: 2026-03-02 — v1.2 milestone archive complete
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: v1.2 milestone archive complete
-Resume file: None
+Stopped at: FORECAST 탭 기능 구현 시작 전 (컨텍스트 한계)
+
+## Next Task: FORECAST 탭 구현
+
+### 요구사항
+- Google Sheets에 **FORECAST** 시트 추가됨 (일별)
+- 컬럼: `날짜(일자)`, `사전 매출`, `사전 달성률`
+- 대시보드에 **세 번째 탭 "예측"** 추가하여 차트로 표시
+- 주차별은 나중에 (우선 일별만)
+
+### 구현 계획
+
+**1. `types/dashboard.ts`**
+- `ForecastRow` 인터페이스 추가: `{ date: string; forecastRevenue: number; forecastRate: number }`
+- `TeamDashboardData`에 `forecastDaily: ForecastRow[]` 필드 추가
+
+**2. `lib/data.ts`**
+- `FORECAST_SHEET` 상수 추가 (`"FORECAST"`)
+- `FORECAST_HEADERS` 상수: `{ date: "일자", revenue: "사전 매출", rate: "사전 달성률" }`
+- `parseForecastFromRows()` 파서 함수 추가
+- `getTeamDashboardData()` 5-fetch로 확장 (FORECAST 시트 추가)
+- mock 폴백: `forecastDaily: []`
+
+**3. `lib/mock-data.ts`**
+- `mockTeamDashboardData.forecastDaily` 샘플 데이터 추가 (2026-03 기준)
+
+**4. `components/dashboard/charts/forecast-chart.tsx`** (신규)
+- ComposedChart: Bar(사전 매출) + Line(사전 달성률, 우측 Y축)
+- 일별 X축, 만원 단위 포맷, 달성률 % 포맷
+
+**5. `app/(dashboard)/dashboard/page.tsx`**
+- `activeTab` 타입에 `'forecast'` 추가
+
+**6. `components/dashboard/dashboard-header.tsx`**
+- TabsTrigger에 `<TabsTrigger value="forecast">예측</TabsTrigger>` 추가
+- `forecast` 탭에서는 기간 필터 / 내보내기 버튼 숨김 (데이터 전체 표시)
+
+**7. `components/dashboard/dashboard-content.tsx`**
+- `tab` 타입 `'daily' | 'weekly' | 'forecast'`로 확장
+- `forecast` 탭 분기: KpiCards/ChartsSection/DataTable 대신 ForecastChart 렌더링
+- `page.tsx`에서 `activeTab` 파싱 시 `'forecast'` 포함
+
+### 참고 파일
+- `lib/data.ts` 기존 파서 패턴: `buildColumnIndex`, `safeNumber` 활용
+- `charts/revenue-trend-chart.tsx` — ComposedChart 패턴 참고
+- `charts/chart-colors.ts` — `getChartColors` 활용

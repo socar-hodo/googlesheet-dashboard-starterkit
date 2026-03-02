@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Dashboard Starter Kit",
-  description: "Google Sheets 기반 대시보드 스타터킷",
+  title: "GU Dashboard",
+  description: "경남울산사업팀 매출 대시보드",
 };
 
 export default function RootLayout({

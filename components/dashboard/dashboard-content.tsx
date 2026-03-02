@@ -20,10 +20,11 @@ import { DashboardHeader } from './dashboard-header';
 import { KpiCards } from './kpi-cards';
 import { ChartsSection } from './charts/charts-section';
 import { DataTable } from './data-table';
+import { ForecastChart } from './charts/forecast-chart';
 
 interface DashboardContentProps {
   data: TeamDashboardData;
-  tab: 'daily' | 'weekly';
+  tab: 'daily' | 'weekly' | 'forecast';
   initialPeriod?: string; // URL에서 읽은 raw string, 검증 전
 }
 
@@ -33,12 +34,13 @@ interface DashboardContentProps {
  * - Weekly 탭: 월 단위만 허용 (this-month, last-month)
  * - 유효하지 않은 값이면 탭 기본값 반환
  */
-function parsePeriod(raw: string | undefined, tab: 'daily' | 'weekly'): PeriodKey {
+function parsePeriod(raw: string | undefined, tab: 'daily' | 'weekly' | 'forecast'): PeriodKey {
   if (!raw) {
-    return tab === 'daily' ? DEFAULT_DAILY_PERIOD : DEFAULT_WEEKLY_PERIOD;
+    return tab === 'weekly' ? DEFAULT_WEEKLY_PERIOD : DEFAULT_DAILY_PERIOD;
   }
 
-  if (tab === 'daily' && (DAILY_PERIODS as string[]).includes(raw)) {
+  // daily / forecast 탭: 4가지 기간 모두 허용
+  if (tab !== 'weekly' && (DAILY_PERIODS as string[]).includes(raw)) {
     return raw as PeriodKey;
   }
 
@@ -47,7 +49,12 @@ function parsePeriod(raw: string | undefined, tab: 'daily' | 'weekly'): PeriodKe
     return raw as PeriodKey;
   }
 
-  return tab === 'daily' ? DEFAULT_DAILY_PERIOD : DEFAULT_WEEKLY_PERIOD;
+  return tab === 'weekly' ? DEFAULT_WEEKLY_PERIOD : DEFAULT_DAILY_PERIOD;
+}
+
+/** Date 객체를 로컬 시간 기준 YYYY-MM-DD 문자열로 변환 (UTC 변환 방지) */
+function toLocalDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 /** 기간 필터 상태를 소유하고 전체 대시보드를 렌더링하는 Client Component */
@@ -72,6 +79,25 @@ export function DashboardContent({ data, tab, initialPeriod }: DashboardContentP
 
   /** 선택된 기간에 맞게 데이터를 필터링한다 */
   const filteredData = useMemo<TeamDashboardData>(() => {
+    if (tab === 'forecast') {
+      const range = getDateRange(period);
+      // 예측 탭: 미래 데이터도 포함해야 하므로 end를 전체 기간 말일까지 확장
+      // this-week → 이번 주 일요일 / this-month → 이번 달 말일
+      const today = new Date();
+      let forecastEnd = range.end;
+      if (period === 'this-week') {
+        const sunday = new Date(today);
+        sunday.setDate(today.getDate() + (7 - (today.getDay() || 7)));
+        forecastEnd = toLocalDateStr(sunday);
+      } else if (period === 'this-month') {
+        const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        forecastEnd = toLocalDateStr(lastDay);
+      }
+      const filteredForecastDaily = data.forecastDaily.filter(
+        (r) => r.date >= range.start && r.date <= forecastEnd,
+      );
+      return { ...data, forecastDaily: filteredForecastDaily };
+    }
     if (tab === 'daily') {
       const range = getDateRange(period);
       const filtered = filterDailyByPeriod(data.daily, range);
@@ -94,12 +120,14 @@ export function DashboardContent({ data, tab, initialPeriod }: DashboardContentP
 
   /** CSV 내보내기 핸들러 — 현재 필터링된 데이터를 .csv로 다운로드 */
   const handleExportCsv = useCallback(() => {
+    if (tab === 'forecast') return;
     const records = tab === 'daily' ? filteredData.daily : filteredData.weekly;
     exportToCsv(records, tab);
   }, [filteredData, tab]);
 
   /** Excel 내보내기 핸들러 — 현재 필터링된 데이터를 .xlsx로 다운로드 */
   const handleExportXlsx = useCallback(() => {
+    if (tab === 'forecast') return;
     const records = tab === 'daily' ? filteredData.daily : filteredData.weekly;
     exportToXlsx(records, tab);
   }, [filteredData, tab]);
@@ -115,14 +143,21 @@ export function DashboardContent({ data, tab, initialPeriod }: DashboardContentP
         onExportXlsx={handleExportXlsx}
       />
 
-      {/* KPI 카드 — 필터링된 데이터(current/previous)와 전체 이력(sparkline) 기반 */}
-      <KpiCards data={filteredData} fullData={data} tab={tab} />
+      {/* 예측 탭: ForecastChart만 렌더링 */}
+      {tab === 'forecast' ? (
+        <ForecastChart data={filteredData.forecastDaily} />
+      ) : (
+        <>
+          {/* KPI 카드 — 필터링된 데이터(current/previous)와 전체 이력(sparkline) 기반 */}
+          <KpiCards data={filteredData} fullData={data} tab={tab} />
 
-      {/* 차트 4종 — 필터링된 데이터 기반 */}
-      <ChartsSection data={filteredData} tab={tab} />
+          {/* 차트 4종 — 필터링된 데이터 기반 */}
+          <ChartsSection data={filteredData} tab={tab} />
 
-      {/* 데이터 테이블 — 필터링된 데이터 기반 */}
-      <DataTable data={filteredData} tab={tab} />
+          {/* 데이터 테이블 — 필터링된 데이터 기반 */}
+          <DataTable data={filteredData} tab={tab} />
+        </>
+      )}
     </div>
   );
 }
