@@ -9,7 +9,15 @@ import Credentials from "next-auth/providers/credentials";
 
 /** Google OAuth 환경변수가 설정되었는지 확인 */
 function isGoogleOAuthConfigured(): boolean {
-  return !!(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET);
+  const hasGoogleSecrets = !!(
+    process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET
+  );
+
+  if (process.env.VERCEL_ENV === "preview") {
+    return process.env.ENABLE_PREVIEW_GOOGLE_OAUTH === "true" && hasGoogleSecrets;
+  }
+
+  return hasGoogleSecrets;
 }
 
 /** 공유 비밀번호가 설정되었는지 확인 */
