@@ -12,10 +12,6 @@ import { Button } from "@/components/ui/button";
 const isGoogleConfigured = !!(
   process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET
 );
-const isPreviewDeployment = process.env.VERCEL_ENV === "preview";
-const isGoogleLoginEnabled =
-  isGoogleConfigured &&
-  (!isPreviewDeployment || process.env.ENABLE_PREVIEW_GOOGLE_OAUTH === "true");
 
 // 공유 비밀번호 로그인이 설정되었는지 확인
 const isPasswordConfigured = !!process.env.DASHBOARD_PASSWORD;
@@ -45,7 +41,7 @@ export default async function LoginPage({
       <CardHeader className="text-center">
         <CardTitle className="text-2xl">로그인</CardTitle>
         <CardDescription>
-          {isGoogleLoginEnabled
+          {isGoogleConfigured
             ? "Google 계정으로 로그인하세요"
             : "개발 모드: 이메일을 입력하면 바로 로그인됩니다"}
         </CardDescription>
@@ -64,7 +60,7 @@ export default async function LoginPage({
           </div>
         )}
 
-        {isGoogleLoginEnabled ? (
+        {isGoogleConfigured ? (
           /* === Google OAuth 로그인 === */
           <form
             action={async () => {
@@ -134,7 +130,7 @@ export default async function LoginPage({
         {/* === 이메일 + 비밀번호 로그인 === */}
         {isPasswordConfigured && (
           <>
-            {isGoogleLoginEnabled && (
+            {isGoogleConfigured && (
               <div className="relative my-4">
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t" />
